@@ -43,9 +43,11 @@ in [WIRING.md](WIRING.md)):
   ESP32 is in reset its pins float and the GreenHat pull-ups take them
   HIGH, so THROWN turnouts give a CLOSED pulse and then a THROWN pulse
   across a node reset. CLOSED turnouts give none.
-- **JMRI goes offline** (JMRI's last-will `<channel>track/state` =
-  `OFFLINE`): `hold` (default) keeps every pin as it is. `low` matches the
-  Pi's shutdown behaviour.
+- **JMRI goes offline** (`<channel>track/state` = `OFFLINE`, which JMRI
+  publishes retained as its last will and on a clean quit): `hold`
+  (default) keeps every pin as it is. `low` matches the Pi's shutdown
+  behaviour; when JMRI connects again (it clears `track/state`), the node
+  re-reads the retained commands so the pins match JMRI's table.
 - **Stagger:** optional delay between pin changes (default 0 ms, like the
   Pi) to spread coil current on the GreenHats' coil supply when JMRI sends
   all turnouts at once.
@@ -129,11 +131,10 @@ M5Stack products, and some of those pins are turnout outputs here.
    low: all LOW). Latch every pin (`gpio_hold_en`), which may keep outputs
    steady across software resets. The float time and which reset types
    the latch survives are still unmeasured (the phase 1 reset tests were
-   skipped). The pins are driven about 100 ms after app start in the
-   phase 1 firmware and about 210 ms in phase 2, on every power-on (the
-   cause is still to be found); phase 3 should drive them before
-   Arduino's start-up code runs. A power cycle starts cold with no
-   movement.
+   skipped). Even from a constructor, the pins are first driven about
+   190 ms after reset: most of that appears to be the bootloader checking
+   the firmware image (PHASE3_BENCH.md, run 1), which firmware can't
+   shorten. A power cycle starts cold with no movement.
 3. Turn on 5VOUT (GreenHat logic power, PM1 G1) only after the pins are
    at their levels, so THROWN turnouts don't pulse at startup.
 4. Start Wi-Fi (modem sleep off for low latency).
@@ -249,8 +250,10 @@ Each phase is tested on real hardware before the next starts.
   pulse THROWN (WIRING.md, power sequencing). Decide whether the layout's
   supplies need arranging so this can't happen, or whether the retained
   restore is enough.
-- Phase 2 bench: ch2's pad read HIGH at a power-on, before the firmware
-  drove it, with 5VOUT off. Not seen in phase 1; cause unknown.
+- After a reset the pins float for about 190 ms, mostly in the
+  bootloader's image check. A smaller image, or building the bootloader
+  to skip the check on reset, would shorten it; the pin latch might cover
+  it, if it holds (unmeasured).
 - The USB console occasionally loses a line of output, and stray input
   arrives when the port reappears (likely ModemManager; see
   PHASE1_BENCH.md for the udev rule).

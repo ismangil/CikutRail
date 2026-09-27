@@ -36,9 +36,9 @@ PanelPro with the MQTT connection and MT101. Keep the node's console and
 ## Tests
 
 1. **Boot report.** After flashing, `boot` shows `pins first driven ... us
-   after app start` (expect a few ms, against about 210 ms in phase 2) and
-   the startup line (`restore: levels from RTC memory`, since a flash is
-   a reset).
+   after chip reset` and the startup line (`restore: levels from RTC
+   memory`, since a flash is a reset). The time includes the bootloader
+   (see the run 1 findings), so expect about 190 ms, not a few ms.
 2. **Levels saved.** `config` shows `levels saved in flash`. Click MT101
    Closed in JMRI, wait 3 s, `config` again: channel 1 now H.
 3. **Restore from flash.** With MT101 CLOSED, stop the broker
@@ -70,10 +70,10 @@ PanelPro with the MQTT connection and MT101. Keep the node's console and
    JMRI publishes anything on connect).
 8. **JMRI offline, low.** `config offline low`, MT101 CLOSED, kill JMRI
    again. Expect `JMRI OFFLINE: all turnouts LOW`, then `ch1 -> THROWN`:
-   the turnout moves. After restarting JMRI, MT101 shows CLOSED (the
-   retained command) while the pin is LOW, until the next click. This is
-   the Pi's shutdown behaviour; `hold` avoids the mismatch.
-   `config offline hold` afterwards.
+   the turnout moves. Restart JMRI: it clears `track/state` with an empty
+   message, and the node logs `JMRI back: re-reading the retained turnout
+   commands`, then `ch1 -> CLOSED`, so the turnout matches JMRI's table
+   again. `config offline hold` afterwards.
 9. **Clean JMRI quit.** Quit PanelPro from its menu. Note whether the
    node logs `JMRI OFFLINE` (JMRI publishing it on a clean disconnect) or
    nothing.
@@ -93,3 +93,44 @@ PanelPro with the MQTT connection and MT101. Keep the node's console and
 | 8 JMRI offline, low | | |
 | 9 Clean JMRI quit | | |
 | 10 Settings kept | | |
+
+### Run 1, 2026-09-27
+
+Firmware 0.3.0-phase3, same bench as phase 2, JMRI PanelPro 5.16 with
+MT101.
+
+| Test | Result | Notes |
+|---|---|---|
+| 1 Boot report | Partial | Works, but pins are first driven about 188 ms after reset, not a few ms (see findings). |
+| 2 Levels saved | Pass | `levels saved in flash: 1:H` about 2 s after the JMRI click. |
+| 3 Restore from flash | Pass | Broker stopped: `restore: levels saved in flash (a power cut), ... changed channels 1`, one CLOSED movement as 5VOUT came on. Broker back: retained CLOSED `unchanged`. |
+| 4 Startup low | Pass | `low: all LOW (THROWN)`, no movement at power-up; the retained CLOSED moved it back once the broker started. |
+| 5 Stagger | Pass | 1000 ms: changes at 125.723, 126.723, 127.723 s. |
+| 6 Minimum interval | Pass | 3000 ms: four commands 300 ms apart gave two changes, the second exactly 3000 ms after the first. The dropped waiting change wasn't logged (fixed in 0.3.1). |
+| 7 JMRI offline, hold | Pass | `pkill -9`: the broker published JMRI's OFFLINE within seconds; `holding every turnout`, nothing moved. |
+| 8 JMRI offline, low | Pass | All CLOSED channels to THROWN at once. After JMRI restarted, MT101 showed CLOSED while the pin stayed LOW; 0.3.1 re-reads the retained commands when JMRI returns. |
+| 9 Clean JMRI quit | Pass | A menu quit also publishes OFFLINE; the node held. |
+| 10 Settings kept | Pass | `startup low` survived the power cut in test 4. |
+
+Findings:
+
+- **Most of the float after a reset is the bootloader.** The early drive
+  from a constructor saved only about 35 ms: pins are first driven about
+  188 ms after reset, the startup policy about 215-223 ms. The times grew
+  from about 103 ms (phase 1, 287 kB image) to about 190-210 ms (phases
+  2-3, about 920 kB), which points at the bootloader checking the whole
+  image before starting it (inferred, not measured directly). Firmware
+  can't shorten that; a smaller image or a bootloader that skips the
+  check on reset could. The boot report now says "after chip reset".
+- **JMRI and `track/state`:** JMRI 5.16 publishes `OFFLINE` there,
+  retained, both as its last will (a crash) and on a clean quit, and
+  clears it with an empty message when it connects. So a retained OFFLINE
+  on reconnect is normal while JMRI is down, and the node rightly ignores
+  it.
+- **Pads at power-on:** before the first drive, different pads read HIGH
+  on different power-ons (2 once; 3, 9, 10, 11 another time; 9-11 aren't
+  wired). They are floating, and harmless: 5VOUT is off at power-on, so
+  the GreenHat has no logic power until the pins are driven.
+- **JMRI turnouts need storing.** MT101 was lost when PanelPro was killed,
+  because it had never been stored to a file; it is now stored and
+  loaded at startup.

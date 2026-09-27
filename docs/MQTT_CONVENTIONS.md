@@ -15,6 +15,14 @@ own docs.
   JMRI uses an **empty** channel (checked 2026-09-27: it publishes on
   `track/turnout/101`).
 
+### JMRI state
+
+JMRI publishes `<channel>track/state` = `OFFLINE`, retained, as its MQTT
+last will (a crash or lost connection) and on a clean quit, and clears it
+with an empty retained message when it connects (checked with JMRI 5.16).
+Nodes act only on a live `OFFLINE`: a retained one may be older than the
+node's own connection.
+
 ## Turnouts
 
 | Item | Value |
