@@ -32,6 +32,7 @@ settings::Source g_source = settings::Source::None;
 bool g_haveConfig = false;
 char g_statusTopic[tc::kMaxTopicLength + 1];
 char g_infoTopic[tc::kMaxTopicLength + 1];
+char g_jmriStateTopic[tc::kMaxTopicLength + 1];
 esp_mqtt_client_handle_t g_client = nullptr;
 QueueHandle_t g_queue = nullptr;
 bool g_mqttStarted = false;
@@ -75,6 +76,7 @@ const char* sourceName(settings::Source source) {
 }
 
 void subscribeAll(esp_mqtt_client_handle_t client) {
+  esp_mqtt_client_subscribe(client, g_jmriStateTopic, 1);
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
     if (names()[i][0] == '\0') continue;
@@ -104,14 +106,25 @@ void onMqttEvent(void*, esp_event_base_t, int32_t id, void* data) {
         ++g_fragmented;
         break;
       }
-      const uint8_t channel = tc::matchTurnoutTopic(g_config.jmriChannel, names(), tc::kChannelCount, event->topic,
-                                                    static_cast<size_t>(event->topic_len));
-      if (channel == 0) break;
-      ++g_received;
-      TurnoutMessage message;
-      message.channel = channel;
-      message.payload = tc::parseTurnoutPayload(event->data, static_cast<size_t>(event->data_len));
+      Message message = {};
       message.retained = event->retain;
+      if (tc::isJmriStateTopic(g_config.jmriChannel, event->topic, static_cast<size_t>(event->topic_len))) {
+        message.kind = Message::Kind::JmriState;
+        message.jmriState = tc::parseJmriState(event->data, static_cast<size_t>(event->data_len));
+        const size_t length = event->data_len < static_cast<int>(sizeof(message.text)) - 1
+                                  ? static_cast<size_t>(event->data_len)
+                                  : sizeof(message.text) - 1;
+        memcpy(message.text, event->data, length);
+        message.text[length] = '\0';
+      } else {
+        const uint8_t channel = tc::matchTurnoutTopic(g_config.jmriChannel, names(), tc::kChannelCount,
+                                                      event->topic, static_cast<size_t>(event->topic_len));
+        if (channel == 0) break;
+        ++g_received;
+        message.kind = Message::Kind::Turnout;
+        message.channel = channel;
+        message.payload = tc::parseTurnoutPayload(event->data, static_cast<size_t>(event->data_len));
+      }
       if (xQueueSend(g_queue, &message, 0) != pdTRUE) ++g_dropped;
       break;
     }
@@ -146,6 +159,9 @@ void stopMqtt() {
 const char* checkTopics() {
   const char* error = nullptr;
   if (!tc::validateTurnoutNames(names(), tc::kChannelCount, &error)) return error;
+  if (!tc::jmriStateTopic(g_config.jmriChannel, g_jmriStateTopic, sizeof(g_jmriStateTopic))) {
+    return "JMRI channel too long";
+  }
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
     if (names()[i][0] == '\0') continue;
@@ -201,7 +217,7 @@ void startNetwork() {
 
 void begin(const char* firmwareVersion) {
   g_firmware = firmwareVersion;
-  g_queue = xQueueCreate(kQueueLength, sizeof(TurnoutMessage));
+  g_queue = xQueueCreate(kQueueLength, sizeof(Message));
   g_source = settings::loadNet(&g_config);
   if (g_source == settings::Source::None) {
     Serial.println("net: no network settings");
@@ -302,7 +318,7 @@ void loop() {
   if (mqttUp && (g_infoDue.exchange(false) || millis() - g_lastInfoMs >= kInfoIntervalMs)) publishInfo();
 }
 
-bool nextTurnoutMessage(TurnoutMessage* message) {
+bool nextMessage(Message* message) {
   return g_queue != nullptr && xQueueReceive(g_queue, message, 0) == pdTRUE;
 }
 
@@ -332,7 +348,7 @@ void printStatus() {
   Serial.printf("MQTT: %s, %s:%u as \"%s\"%s, %lu connects\n", g_mqttUp ? "up" : "down", g_config.mqttHost,
                 g_config.mqttPort, g_config.nodeName, g_config.mqttUser[0] != '\0' ? " with login" : "",
                 static_cast<unsigned long>(g_connects));
-  Serial.printf("status topic: %s\n", g_statusTopic);
+  Serial.printf("status topic: %s, JMRI state topic: %s\n", g_statusTopic, g_jmriStateTopic);
   Serial.printf("JMRI channel: \"%s\"\n", g_config.jmriChannel);
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {

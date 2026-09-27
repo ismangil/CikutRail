@@ -8,6 +8,7 @@ namespace tc {
 namespace {
 
 const char kTurnoutPrefix[] = "track/turnout/";
+const char kStateTopic[] = "track/state";
 
 bool payloadIs(const char* data, size_t length, const char* word) {
   return length == strlen(word) && memcmp(data, word, length) == 0;
@@ -79,6 +80,22 @@ bool validateTurnoutNames(const char* const* names, uint8_t count, const char** 
   }
   if (error != nullptr) *error = message;
   return message == nullptr;
+}
+
+JmriState parseJmriState(const char* data, size_t length) {
+  return data != nullptr && payloadIs(data, length, "OFFLINE") ? JmriState::Offline : JmriState::Other;
+}
+
+bool jmriStateTopic(const char* channel, char* out, size_t size) {
+  const int written = snprintf(out, size, "%s%s", channel, kStateTopic);
+  return written >= 0 && static_cast<size_t>(written) < size;
+}
+
+bool isJmriStateTopic(const char* channel, const char* topic, size_t length) {
+  const size_t channelLength = strlen(channel);
+  const size_t stateLength = sizeof(kStateTopic) - 1;
+  return topic != nullptr && length == channelLength + stateLength && memcmp(topic, channel, channelLength) == 0 &&
+         memcmp(topic + channelLength, kStateTopic, stateLength) == 0;
 }
 
 bool turnoutTopic(const char* channel, const char* name, char* out, size_t size) {

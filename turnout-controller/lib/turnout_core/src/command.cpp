@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "behaviour.h"
 #include "channels.h"
 
 namespace tc {
@@ -201,6 +202,42 @@ ParseResult parseCommand(const char* line) {
   if (equalsIgnoreCase(verb, "5v")) return parseSwitch(CommandType::FiveVolt, tokens, count);
   if (equalsIgnoreCase(verb, "hold")) return parseSwitch(CommandType::Hold, tokens, count);
   if (equalsIgnoreCase(verb, "portal")) return parseSwitch(CommandType::Portal, tokens, count);
+
+  if (equalsIgnoreCase(verb, "config")) {
+    command.type = CommandType::Config;
+    if (count == 1) return succeed(command);
+    if (count != 3) return fail("usage: config [startup restore|low | offline hold|low | stagger <ms> | interval <ms>]");
+    const char* key = tokens[1];
+    const char* value = tokens[2];
+    if (equalsIgnoreCase(key, "startup")) {
+      command.configKey = ConfigKey::Startup;
+      if (equalsIgnoreCase(value, "restore")) {
+        command.configValue = static_cast<uint32_t>(StartupLevel::Restore);
+      } else if (equalsIgnoreCase(value, "low")) {
+        command.configValue = static_cast<uint32_t>(StartupLevel::Low);
+      } else {
+        return fail("startup: restore or low");
+      }
+    } else if (equalsIgnoreCase(key, "offline")) {
+      command.configKey = ConfigKey::Offline;
+      if (equalsIgnoreCase(value, "hold")) {
+        command.configValue = static_cast<uint32_t>(OfflinePolicy::Hold);
+      } else if (equalsIgnoreCase(value, "low")) {
+        command.configValue = static_cast<uint32_t>(OfflinePolicy::Low);
+      } else {
+        return fail("offline: hold or low");
+      }
+    } else if (equalsIgnoreCase(key, "stagger")) {
+      command.configKey = ConfigKey::Stagger;
+      if (!parseNumber(value, kMaxStaggerMs, &command.configValue)) return fail("stagger: 0-5000 ms");
+    } else if (equalsIgnoreCase(key, "interval")) {
+      command.configKey = ConfigKey::Interval;
+      if (!parseNumber(value, kMaxMinIntervalMs, &command.configValue)) return fail("interval: 0-10000 ms");
+    } else {
+      return fail("config keys: startup, offline, stagger, interval");
+    }
+    return succeed(command);
+  }
 
   if (equalsIgnoreCase(verb, "reset")) {
     if (count < 2 || count > 3) return fail("usage: reset soft|panic|wdt [5v-off]");

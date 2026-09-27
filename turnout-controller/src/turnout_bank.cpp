@@ -2,6 +2,7 @@
 
 #include <driver/gpio.h>
 #include <esp_attr.h>
+#include <esp_rom_gpio.h>
 #include <esp_rom_sys.h>
 #include <esp_timer.h>
 
@@ -31,10 +32,12 @@ void saveSnapshot(uint8_t plannedReset) {
   tc::snapshotWrite(&g_snapshot, g_levels, g_hold, plannedReset);
 }
 
-}  // namespace
-
+// Runs as a C++ constructor, before app_main() and so before Arduino's
+// start-up code. The order among constructors follows link order (the
+// ESP-IDF linker script sorts priorities only within one file), so this
+// uses only ROM, register and GPIO calls: no logging, and no
+// esp_reset_reason(), which another constructor sets up.
 void earlyInit() {
-  g_boot.resetReason = esp_reset_reason();
   g_boot.romResetReason = esp_rom_get_reset_reason(0);
   g_boot.restored = tc::snapshotValid(g_snapshot);
   g_boot.plannedReset = g_boot.restored ? g_snapshot.plannedReset : 0;
@@ -43,29 +46,51 @@ void earlyInit() {
 
   // Set each output latch before enabling the driver, so a pad that is
   // still held from before the reset sees the same level when released.
-  uint64_t mask = 0;
+  // (gpio_config() logs, so the pads are set up call by call instead.)
   for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
     const gpio_num_t gpio = gpioFor(channel);
     if (gpio_get_level(gpio)) g_boot.padLevelsAtBoot |= bitFor(channel);
     gpio_set_level(gpio, (g_levels & bitFor(channel)) ? 1 : 0);
-    mask |= 1ull << gpio;
-  }
-
-  gpio_config_t config = {};
-  config.pin_bit_mask = mask;
-  config.mode = GPIO_MODE_INPUT_OUTPUT;  // input path on, so padLevel() reads the pad
-  config.pull_up_en = GPIO_PULLUP_DISABLE;
-  config.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  config.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&config);
-
-  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
-    const gpio_num_t gpio = gpioFor(channel);
+    esp_rom_gpio_pad_select_gpio(gpio);
+    gpio_set_pull_mode(gpio, GPIO_FLOATING);
+    gpio_set_direction(gpio, GPIO_MODE_INPUT_OUTPUT);  // input path on, so padLevel() reads the pad
     gpio_hold_dis(gpio);
     if (g_hold) gpio_hold_en(gpio);
   }
 
   g_boot.drivenAtUs = esp_timer_get_time();
+  saveSnapshot(0);
+}
+
+__attribute__((constructor)) void driveEarly() { earlyInit(); }
+
+}  // namespace
+
+void applyStartup(tc::StartupLevel policy, bool haveSavedLevels, uint16_t savedLevels) {
+  g_boot.resetReason = esp_reset_reason();
+
+  uint16_t target;
+  if (policy == tc::StartupLevel::Low) {
+    target = 0;
+    g_boot.source = LevelSource::PolicyLow;
+  } else if (g_boot.restored) {
+    target = g_levels;  // newer than flash, which is written a little after each change
+    g_boot.source = LevelSource::Rtc;
+  } else if (haveSavedLevels) {
+    target = savedLevels & tc::kAllChannelsMask;
+    g_boot.source = LevelSource::Flash;
+  } else {
+    target = 0;
+    g_boot.source = LevelSource::NothingSaved;
+  }
+
+  g_boot.changedAtStartup = static_cast<uint16_t>(target ^ g_levels);
+  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+    if (g_boot.changedAtStartup & bitFor(channel)) {
+      setState(channel, tc::stateForPinLevel((target & bitFor(channel)) != 0));
+    }
+  }
+  g_boot.startupAtUs = esp_timer_get_time();
   saveSnapshot(0);
 }
 
@@ -85,6 +110,8 @@ void setState(uint8_t channel, tc::TurnoutState state) {
   gpio_set_level(gpio, level ? 1 : 0);
   if (g_hold) gpio_hold_en(gpio);
 }
+
+uint16_t levels() { return g_levels; }
 
 tc::TurnoutState state(uint8_t channel) {
   return tc::stateForPinLevel((g_levels & bitFor(channel)) != 0);

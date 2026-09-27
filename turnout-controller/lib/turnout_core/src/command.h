@@ -22,9 +22,12 @@ enum class CommandType : uint8_t {
   Net,        // net
   NetForget,  // net forget
   Portal,     // portal [on|off]
+  Config,     // config [startup|offline|stagger|interval <value>]
 };
 
 enum class ResetKind : uint8_t { Soft, Panic, Watchdog };
+
+enum class ConfigKey : uint8_t { Show, Startup, Offline, Stagger, Interval };
 
 // Bench limits for "cycle", so a mistyped command can't cook a snap coil.
 const uint32_t kCycleMaxCount = 100;
@@ -42,6 +45,8 @@ struct Command {
   uint32_t intervalMs = 0;        // Cycle: time between toggles
   ResetKind resetKind = ResetKind::Soft;
   bool fiveVoltOffFirst = false;  // Reset: turn 5VOUT off before resetting
+  ConfigKey configKey = ConfigKey::Show;
+  uint32_t configValue = 0;       // Config: ms, or 0/1 for startup (restore/low) and offline (hold/low)
 };
 
 struct ParseResult {

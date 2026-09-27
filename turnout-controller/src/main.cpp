@@ -1,15 +1,18 @@
-// Turnout node firmware. Phase 2: JMRI MQTT turnouts over Wi-Fi, set up
-// through a setup page (docs/PHASE2_BENCH.md), plus the phase 1 bench
-// console on USB serial (docs/PHASE1_BENCH.md).
+// Turnout node firmware: JMRI MQTT turnouts over Wi-Fi, set up through a
+// setup page (docs/PHASE2_BENCH.md), with startup and restart behaviour
+// (docs/PHASE3_BENCH.md), plus the phase 1 bench console on USB serial
+// (docs/PHASE1_BENCH.md).
 #include <Arduino.h>
 #include <esp_system.h>
 
+#include "behaviour.h"
 #include "channels.h"
 #include "command.h"
 #include "jmri_protocol.h"
 #include "net.h"
 #include "portal.h"
 #include "power.h"
+#include "settings.h"
 #include "turnout_bank.h"
 
 namespace {
@@ -17,7 +20,10 @@ namespace {
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.2.0-phase2";
+const char* const kFirmwareVersion = "0.3.0-phase3";
+// Levels go to flash this long after the last change, so a burst of
+// changes costs one write.
+const uint32_t kSaveLevelsAfterMs = 2000;
 
 struct CycleJob {
   bool active = false;
@@ -34,6 +40,31 @@ size_t g_lineLength = 0;
 bool g_lineOverflow = false;
 bool g_fiveVoltWasOn = false;  // 5VOUT as found at boot, for the boot report
 bool g_fiveVoltKnown = false;
+
+tc::Behaviour g_behaviour = tc::defaultBehaviour();
+tc::TurnoutScheduler g_scheduler;
+bool g_haveSavedLevels = false;
+uint16_t g_savedLevels = 0;     // as last written to flash
+uint16_t g_lastLevels = 0;      // as last seen, to time the flash write
+uint32_t g_levelsChangedMs = 0;
+
+void configure(const tc::Command& command);  // console "config", below
+
+// "[12.345] " seconds since boot, for timing stagger and interval.
+void stamp() {
+  const uint32_t now = millis();
+  Serial.printf("[%lu.%03lu] ", static_cast<unsigned long>(now / 1000), static_cast<unsigned long>(now % 1000));
+}
+
+const char* levelSourceName(bank::LevelSource source) {
+  switch (source) {
+    case bank::LevelSource::Rtc: return "restore: levels from RTC memory (a reset)";
+    case bank::LevelSource::Flash: return "restore: levels saved in flash (a power cut)";
+    case bank::LevelSource::NothingSaved: return "restore: nothing saved, all LOW (THROWN)";
+    case bank::LevelSource::PolicyLow: return "low: all LOW (THROWN)";
+  }
+  return "";
+}
 
 const char* resetReasonName(esp_reset_reason_t reason) {
   switch (reason) {
@@ -87,6 +118,9 @@ void printStatus() {
   }
   Serial.printf("pin latch (hold): %s\n", onOff(bank::holdEnabled()));
   printFiveVolt();
+  if (g_scheduler.pendingCount() > 0) {
+    Serial.printf("waiting changes (stagger/interval): %u\n", g_scheduler.pendingCount());
+  }
   if (g_cycle.active) {
     Serial.printf("cycle: channel %u, %lu of %lu toggles\n", g_cycle.channel,
                   static_cast<unsigned long>(g_cycle.done), static_cast<unsigned long>(g_cycle.count));
@@ -99,9 +133,17 @@ void printBootReport() {
   Serial.printf("reset reason: %s (ROM code 0x%02lx)\n", resetReasonName(boot.resetReason),
                 static_cast<unsigned long>(boot.romResetReason));
   Serial.printf("console reset before this boot: %s\n", resetKindName(boot.plannedReset));
-  Serial.printf("pin levels: %s\n", boot.restored ? "restored from RTC memory" : "cold start, all LOW (THROWN)");
   printLevels("pads read at boot, before driving:", boot.padLevelsAtBoot);
-  Serial.printf("pins driven %lld us after app start\n", static_cast<long long>(boot.drivenAtUs));
+  Serial.printf("pins first driven %lld us after app start, %s\n", static_cast<long long>(boot.drivenAtUs),
+                boot.restored ? "to the levels in RTC memory" : "all LOW (power cut: RTC memory empty)");
+  Serial.printf("startup %s, at %lld us", levelSourceName(boot.source), static_cast<long long>(boot.startupAtUs));
+  if (boot.changedAtStartup != 0) {
+    Serial.print(", changed channels");
+    for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+      if (boot.changedAtStartup & (1u << (channel - 1))) Serial.printf(" %u", channel);
+    }
+  }
+  Serial.println();
   if (!power::available()) {
     Serial.println("PM1: not found; 5VOUT not controlled");
   } else if (!g_fiveVoltKnown) {
@@ -135,6 +177,11 @@ void printHelp() {
       "  net                       Wi-Fi, MQTT, turnout topics and message counts\n"
       "  net forget                erase the saved network settings, open the setup portal\n"
       "  portal [on|off]           show or switch the setup access point and page\n"
+      "  config                    show behaviour settings\n"
+      "  config startup restore|low       levels at power-up: last saved, or all LOW\n"
+      "  config offline hold|low          when JMRI goes offline: keep, or all LOW\n"
+      "  config stagger <ms>              0-5000 between any two changes (MQTT)\n"
+      "  config interval <ms>             0-10000 between two changes of one turnout\n"
       "  help | ?                  this list\n"
       "Any command stops a running cycle.");
 }
@@ -151,6 +198,7 @@ void applyToChannels(uint16_t mask, tc::CommandType type) {
       target = bank::state(channel) == tc::TurnoutState::Closed ? tc::TurnoutState::Thrown : tc::TurnoutState::Closed;
     }
     bank::setState(channel, target);
+    g_scheduler.noteApplied(channel, millis());
     Serial.printf("%u %s\n", channel, tc::stateName(target));
   }
 }
@@ -261,6 +309,9 @@ void execute(const tc::Command& command) {
     case tc::CommandType::NetForget:
       net::forget();
       break;
+    case tc::CommandType::Config:
+      configure(command);
+      break;
     case tc::CommandType::Portal:
       if (command.hasSwitch) {
         if (command.switchOn) {
@@ -284,30 +335,128 @@ void runCycle() {
   }
 }
 
-// Applies turnout commands from JMRI. Only a real change touches the pin;
+// Applies due changes, within the stagger and minimum interval.
+void runScheduler() {
+  tc::TurnoutState current[tc::kChannelCount];
+  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) current[channel - 1] = bank::state(channel);
+  uint8_t channel;
+  tc::TurnoutState target;
+  while (g_scheduler.next(millis(), current, &channel, &target)) {
+    bank::setState(channel, target);
+    current[channel - 1] = target;
+    stamp();
+    Serial.printf("ch%u -> %s (%s)\n", channel, tc::stateName(target), net::turnoutName(channel));
+    net::noteOutcome(net::Outcome::Applied);
+  }
+}
+
+void handleJmriState(const net::Message& message) {
+  stamp();
+  if (message.jmriState != tc::JmriState::Offline) {
+    Serial.printf("JMRI state \"%s\"%s\n", message.text, message.retained ? " (retained)" : "");
+    return;
+  }
+  // A retained OFFLINE may be old news from before this connection.
+  if (message.retained) {
+    Serial.println("JMRI OFFLINE (retained): ignored");
+    return;
+  }
+  if (g_behaviour.offline == tc::OfflinePolicy::Hold) {
+    Serial.println("JMRI OFFLINE: holding every turnout");
+    return;
+  }
+  Serial.println("JMRI OFFLINE: all turnouts LOW (THROWN)");
+  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+    g_scheduler.request(channel, tc::TurnoutState::Thrown);
+  }
+}
+
+// Takes commands from JMRI. A repeat of the current state does nothing;
 // UNKNOWN, INCONSISTENT and anything else are logged and ignored.
-void applyTurnoutMessages() {
-  net::TurnoutMessage message;
-  while (net::nextTurnoutMessage(&message)) {
+void handleMessages() {
+  net::Message message;
+  while (net::nextMessage(&message)) {
+    if (message.kind == net::Message::Kind::JmriState) {
+      handleJmriState(message);
+      continue;
+    }
     const char* name = net::turnoutName(message.channel);
     const char* retained = message.retained ? " (retained)" : "";
     if (message.payload != tc::JmriPayload::Closed && message.payload != tc::JmriPayload::Thrown) {
+      stamp();
       Serial.printf("mqtt %s %s%s: ignored\n", name, tc::payloadName(message.payload), retained);
       net::noteOutcome(net::Outcome::Ignored);
       continue;
     }
     const tc::TurnoutState target =
         message.payload == tc::JmriPayload::Closed ? tc::TurnoutState::Closed : tc::TurnoutState::Thrown;
-    if (bank::state(message.channel) == target) {
+    stamp();
+    if (!g_scheduler.isPending(message.channel) && bank::state(message.channel) == target) {
       Serial.printf("mqtt %s %s%s: ch%u unchanged\n", name, tc::stateName(target), retained, message.channel);
       net::noteOutcome(net::Outcome::Unchanged);
       continue;
     }
-    bank::setState(message.channel, target);
-    Serial.printf("mqtt %s %s%s: ch%u -> %s\n", name, tc::stateName(target), retained, message.channel,
-                  tc::stateName(target));
-    net::noteOutcome(net::Outcome::Applied);
+    Serial.printf("mqtt %s %s%s\n", name, tc::stateName(target), retained);
+    g_scheduler.request(message.channel, target);
+    runScheduler();
+    if (g_scheduler.isPending(message.channel)) {
+      stamp();
+      Serial.printf("ch%u waiting (stagger %u ms, interval %u ms)\n", message.channel, g_behaviour.staggerMs,
+                    g_behaviour.minIntervalMs);
+    }
   }
+}
+
+// Writes the levels to flash once they have been steady for a moment.
+void saveLevelsWhenSteady() {
+  const uint16_t levels = bank::levels();
+  if (levels != g_lastLevels) {
+    g_lastLevels = levels;
+    g_levelsChangedMs = millis();
+  }
+  if ((!g_haveSavedLevels || g_lastLevels != g_savedLevels) && millis() - g_levelsChangedMs >= kSaveLevelsAfterMs) {
+    if (settings::saveLevels(g_lastLevels)) {
+      g_savedLevels = g_lastLevels;
+      g_haveSavedLevels = true;
+    } else {
+      g_levelsChangedMs = millis();  // try again later
+    }
+  }
+}
+
+void printBehaviour() {
+  Serial.printf("startup: %s\n", tc::startupLevelName(g_behaviour.startup));
+  Serial.printf("offline: %s\n", tc::offlinePolicyName(g_behaviour.offline));
+  Serial.printf("stagger: %u ms\n", g_behaviour.staggerMs);
+  Serial.printf("interval: %u ms\n", g_behaviour.minIntervalMs);
+  if (g_haveSavedLevels) {
+    printLevels("levels saved in flash:", g_savedLevels);
+  } else {
+    Serial.println("levels saved in flash: none yet");
+  }
+}
+
+void configure(const tc::Command& command) {
+  switch (command.configKey) {
+    case tc::ConfigKey::Show:
+      printBehaviour();
+      return;
+    case tc::ConfigKey::Startup:
+      g_behaviour.startup = static_cast<tc::StartupLevel>(command.configValue);
+      break;
+    case tc::ConfigKey::Offline:
+      g_behaviour.offline = static_cast<tc::OfflinePolicy>(command.configValue);
+      break;
+    case tc::ConfigKey::Stagger:
+      g_behaviour.staggerMs = static_cast<uint16_t>(command.configValue);
+      break;
+    case tc::ConfigKey::Interval:
+      g_behaviour.minIntervalMs = static_cast<uint16_t>(command.configValue);
+      break;
+  }
+  g_scheduler.configure(g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+  if (!settings::saveBehaviour(g_behaviour)) Serial.println("could not write to flash; setting applies until power-off");
+  printBehaviour();
 }
 
 void readConsole() {
@@ -337,12 +486,20 @@ void readConsole() {
 
 }  // namespace
 
-// Arduino-ESP32 calls initVariant() from initArduino(), before setup().
-// Driving the pins here keeps the time they float after a reset short.
-extern "C" void initVariant() { bank::earlyInit(); }
+// Arduino-ESP32 calls initVariant() from initArduino(), before setup():
+// flash is readable, 5VOUT not yet on. The pins were already driven once
+// from a constructor (turnout_bank.cpp); the startup policy sets them now.
+extern "C" void initVariant() {
+  g_behaviour = settings::loadBehaviour();
+  g_haveSavedLevels = settings::loadLevels(&g_savedLevels);
+  bank::applyStartup(g_behaviour.startup, g_haveSavedLevels, g_savedLevels);
+}
 
 void setup() {
   Serial.begin(115200);
+  g_scheduler.configure(g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+  g_lastLevels = bank::levels();
+  g_levelsChangedMs = millis();
 
   // Pins are already at their levels, so turning 5VOUT on now can't make
   // a THROWN turnout pulse.
@@ -361,7 +518,9 @@ void setup() {
 void loop() {
   readConsole();
   runCycle();
-  applyTurnoutMessages();
+  handleMessages();
+  runScheduler();
+  saveLevelsWhenSteady();
   net::loop();
   portal::loop();
   delay(1);

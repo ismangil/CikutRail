@@ -2,6 +2,7 @@
 #include <string.h>
 #include <unity.h>
 
+#include "behaviour.h"
 #include "channels.h"
 #include "command.h"
 #include "jmri_protocol.h"
@@ -488,6 +489,169 @@ void test_html_escape() {
   TEST_ASSERT_TRUE(htmlEscape("abcd", small, sizeof(small)));
 }
 
+
+// --- JMRI state ---
+
+void test_jmri_state_topic() {
+  char topic[kMaxTopicLength + 1];
+  TEST_ASSERT_TRUE(jmriStateTopic("", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("track/state", topic);
+  TEST_ASSERT_TRUE(jmriStateTopic("/trains/", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("/trains/track/state", topic);
+  TEST_ASSERT_TRUE(isJmriStateTopic("", "track/state", 11));
+  TEST_ASSERT_TRUE(isJmriStateTopic("/trains/", "/trains/track/state", 19));
+  TEST_ASSERT_FALSE(isJmriStateTopic("", "/trains/track/state", 19));
+  TEST_ASSERT_FALSE(isJmriStateTopic("", "track/state/x", 13));
+  TEST_ASSERT_FALSE(isJmriStateTopic("", "track/turnout/101", 17));
+  TEST_ASSERT_TRUE(parseJmriState("OFFLINE", 7) == JmriState::Offline);
+  TEST_ASSERT_TRUE(parseJmriState("ONLINE", 6) == JmriState::Other);
+  TEST_ASSERT_TRUE(parseJmriState("offline", 7) == JmriState::Other);
+  TEST_ASSERT_TRUE(parseJmriState(nullptr, 0) == JmriState::Other);
+}
+
+// --- behaviour and scheduler ---
+
+struct Bench {
+  TurnoutScheduler scheduler;
+  TurnoutState state[kChannelCount];
+  Bench() {
+    for (uint8_t i = 0; i < kChannelCount; ++i) state[i] = TurnoutState::Thrown;
+  }
+  // Runs the scheduler at nowMs; returns the channel changed, or 0.
+  uint8_t step(uint32_t nowMs) {
+    uint8_t channel = 0;
+    TurnoutState target;
+    if (!scheduler.next(nowMs, state, &channel, &target)) return 0;
+    state[channel - 1] = target;
+    return channel;
+  }
+};
+
+void test_behaviour_defaults_match_the_pi() {
+  const Behaviour b = defaultBehaviour();
+  TEST_ASSERT_TRUE(b.startup == StartupLevel::Restore);
+  TEST_ASSERT_TRUE(b.offline == OfflinePolicy::Hold);
+  TEST_ASSERT_EQUAL_UINT16(0, b.staggerMs);
+  TEST_ASSERT_EQUAL_UINT16(0, b.minIntervalMs);
+  TEST_ASSERT_EQUAL_STRING("restore", startupLevelName(StartupLevel::Restore));
+  TEST_ASSERT_EQUAL_STRING("low", offlinePolicyName(OfflinePolicy::Low));
+}
+
+void test_scheduler_without_limits_applies_everything_at_once() {
+  Bench bench;
+  bench.scheduler.request(1, TurnoutState::Closed);
+  bench.scheduler.request(2, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(100));
+  TEST_ASSERT_EQUAL_UINT8(2, bench.step(100));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(100));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.scheduler.pendingCount());
+}
+
+void test_scheduler_drops_requests_that_already_match() {
+  Bench bench;
+  bench.scheduler.request(1, TurnoutState::Thrown);  // already THROWN
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(0));
+  TEST_ASSERT_FALSE(bench.scheduler.isPending(1));
+}
+
+void test_scheduler_stagger_spaces_changes_oldest_first() {
+  Bench bench;
+  bench.scheduler.configure(500, 0);
+  bench.scheduler.request(3, TurnoutState::Closed);
+  bench.scheduler.request(1, TurnoutState::Closed);
+  bench.scheduler.request(2, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(3, bench.step(1000));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(1499));
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(1500));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(1999));
+  TEST_ASSERT_EQUAL_UINT8(2, bench.step(2000));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.scheduler.pendingCount());
+}
+
+void test_scheduler_minimum_interval_keeps_latest() {
+  Bench bench;
+  bench.scheduler.configure(0, 3000);
+  bench.scheduler.request(1, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(0));
+  // A reversal during the interval waits; newer requests replace it.
+  bench.scheduler.request(1, TurnoutState::Thrown);
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(1000));
+  bench.scheduler.request(1, TurnoutState::Closed);  // back to the current state
+  bench.scheduler.request(1, TurnoutState::Thrown);  // latest wins
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(2999));
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(3000));
+  TEST_ASSERT_TRUE(bench.state[0] == TurnoutState::Thrown);
+  // Other channels aren't held back by channel 1's interval.
+  bench.scheduler.request(1, TurnoutState::Closed);
+  bench.scheduler.request(2, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(2, bench.step(3001));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(3002));
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(6000));
+}
+
+void test_scheduler_reversal_cancelled_in_interval_does_nothing() {
+  Bench bench;
+  bench.scheduler.configure(0, 3000);
+  bench.scheduler.request(1, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(0));
+  bench.scheduler.request(1, TurnoutState::Thrown);
+  bench.scheduler.request(1, TurnoutState::Closed);  // cancelled before it was due
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(5000));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.scheduler.pendingCount());
+}
+
+void test_scheduler_counts_console_changes() {
+  Bench bench;
+  bench.scheduler.configure(1000, 5000);
+  bench.scheduler.noteApplied(1, 10000);
+  bench.state[0] = TurnoutState::Closed;
+  bench.scheduler.request(2, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(10500));  // stagger from the console change
+  TEST_ASSERT_EQUAL_UINT8(2, bench.step(11000));
+  bench.scheduler.request(1, TurnoutState::Thrown);
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(14999));  // channel 1's interval
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(15000));
+}
+
+void test_scheduler_survives_millis_wrap() {
+  Bench bench;
+  bench.scheduler.configure(500, 0);
+  bench.scheduler.request(1, TurnoutState::Closed);
+  bench.scheduler.request(2, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(1, bench.step(0xFFFFFF00u));
+  TEST_ASSERT_EQUAL_UINT8(0, bench.step(0x00000010u));  // 0x110 ms later
+  TEST_ASSERT_EQUAL_UINT8(2, bench.step(0x00000200u));  // 0x300 ms later
+}
+
+void test_scheduler_ignores_bad_channels() {
+  Bench bench;
+  bench.scheduler.request(0, TurnoutState::Closed);
+  bench.scheduler.request(kChannelCount + 1, TurnoutState::Closed);
+  TEST_ASSERT_EQUAL_UINT8(0, bench.scheduler.pendingCount());
+  TEST_ASSERT_FALSE(bench.scheduler.isPending(0));
+}
+
+void test_config_commands() {
+  TEST_ASSERT_TRUE(parseCommand("config").command.type == CommandType::Config);
+  TEST_ASSERT_TRUE(parseCommand("config").command.configKey == ConfigKey::Show);
+  ParseResult r = parseCommand("config startup LOW");
+  TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Startup &&
+                   r.command.configValue == static_cast<uint32_t>(StartupLevel::Low));
+  r = parseCommand("config offline hold");
+  TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Offline &&
+                   r.command.configValue == static_cast<uint32_t>(OfflinePolicy::Hold));
+  r = parseCommand("config stagger 5000");
+  TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Stagger && r.command.configValue == 5000);
+  r = parseCommand("config interval 0");
+  TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Interval && r.command.configValue == 0);
+  TEST_ASSERT_FALSE(parseCommand("config stagger 5001").ok);
+  TEST_ASSERT_FALSE(parseCommand("config interval 10001").ok);
+  TEST_ASSERT_FALSE(parseCommand("config stagger -1").ok);
+  TEST_ASSERT_FALSE(parseCommand("config startup maybe").ok);
+  TEST_ASSERT_FALSE(parseCommand("config offline").ok);
+  TEST_ASSERT_FALSE(parseCommand("config colour red").ok);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_default_channel_table_is_valid);
@@ -518,5 +682,16 @@ int main() {
   RUN_TEST(test_form_changed_network_or_user);
   RUN_TEST(test_form_first_setup_and_errors);
   RUN_TEST(test_html_escape);
+  RUN_TEST(test_jmri_state_topic);
+  RUN_TEST(test_behaviour_defaults_match_the_pi);
+  RUN_TEST(test_scheduler_without_limits_applies_everything_at_once);
+  RUN_TEST(test_scheduler_drops_requests_that_already_match);
+  RUN_TEST(test_scheduler_stagger_spaces_changes_oldest_first);
+  RUN_TEST(test_scheduler_minimum_interval_keeps_latest);
+  RUN_TEST(test_scheduler_reversal_cancelled_in_interval_does_nothing);
+  RUN_TEST(test_scheduler_counts_console_changes);
+  RUN_TEST(test_scheduler_survives_millis_wrap);
+  RUN_TEST(test_scheduler_ignores_bad_channels);
+  RUN_TEST(test_config_commands);
   return UNITY_END();
 }

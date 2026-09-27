@@ -14,6 +14,8 @@ namespace {
 
 const char kNetNamespace[] = "net";
 const char kPortalNamespace[] = "portal";
+const char kBehaviourNamespace[] = "behave";
+const char kLevelsNamespace[] = "turnouts";
 const uint8_t kApPasswordLength = 10;
 // No 0/O, 1/l/i: easy to read off a console and type on a phone.
 const char kApPasswordAlphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -104,6 +106,52 @@ const char* apPassword() {
   }
   if (open) prefs.end();
   return g_apPassword;
+}
+
+tc::Behaviour loadBehaviour() {
+  tc::Behaviour behaviour = tc::defaultBehaviour();
+  Preferences prefs;
+  if (!prefs.begin(kBehaviourNamespace, true)) return behaviour;
+  if (prefs.getUChar("startup", 0) == static_cast<uint8_t>(tc::StartupLevel::Low)) {
+    behaviour.startup = tc::StartupLevel::Low;
+  }
+  if (prefs.getUChar("offline", 0) == static_cast<uint8_t>(tc::OfflinePolicy::Low)) {
+    behaviour.offline = tc::OfflinePolicy::Low;
+  }
+  const uint16_t stagger = prefs.getUShort("stagger", 0);
+  const uint16_t interval = prefs.getUShort("interval", 0);
+  prefs.end();
+  behaviour.staggerMs = stagger <= tc::kMaxStaggerMs ? stagger : 0;
+  behaviour.minIntervalMs = interval <= tc::kMaxMinIntervalMs ? interval : 0;
+  return behaviour;
+}
+
+bool saveBehaviour(const tc::Behaviour& behaviour) {
+  Preferences prefs;
+  if (!prefs.begin(kBehaviourNamespace, false)) return false;
+  const bool ok = prefs.putUChar("startup", static_cast<uint8_t>(behaviour.startup)) > 0 &&
+                  prefs.putUChar("offline", static_cast<uint8_t>(behaviour.offline)) > 0 &&
+                  prefs.putUShort("stagger", behaviour.staggerMs) > 0 &&
+                  prefs.putUShort("interval", behaviour.minIntervalMs) > 0;
+  prefs.end();
+  return ok;
+}
+
+bool loadLevels(uint16_t* levels) {
+  Preferences prefs;
+  if (!prefs.begin(kLevelsNamespace, true)) return false;
+  const bool saved = prefs.isKey("levels");
+  if (saved) *levels = static_cast<uint16_t>(prefs.getUShort("levels", 0) & tc::kAllChannelsMask);
+  prefs.end();
+  return saved;
+}
+
+bool saveLevels(uint16_t levels) {
+  Preferences prefs;
+  if (!prefs.begin(kLevelsNamespace, false)) return false;
+  const bool ok = prefs.putUShort("levels", levels) > 0;
+  prefs.end();
+  return ok;
 }
 
 const char* const* turnoutNames() { return local_settings::kTurnoutNames; }

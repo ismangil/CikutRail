@@ -42,6 +42,14 @@ bool validateTurnoutNames(const char* const* names, uint8_t count, const char** 
 // Writes "<channel>track/turnout/<name>". False if it doesn't fit.
 bool turnoutTopic(const char* channel, const char* name, char* out, size_t size);
 
+// JMRI's last will: <channel>track/state = OFFLINE (MqttAdapter defaults).
+enum class JmriState : uint8_t { Offline, Other };
+JmriState parseJmriState(const char* data, size_t length);
+
+// Writes "<channel>track/state". False if it doesn't fit.
+bool jmriStateTopic(const char* channel, char* out, size_t size);
+bool isJmriStateTopic(const char* channel, const char* topic, size_t length);
+
 // Returns the channel (1..count) whose command topic equals
 // topic[0..length), or 0. Sub-topics such as .../101/state never match.
 uint8_t matchTurnoutTopic(const char* channel, const char* const* names, uint8_t count, const char* topic,

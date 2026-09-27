@@ -11,9 +11,13 @@
 
 namespace net {
 
-struct TurnoutMessage {
-  uint8_t channel;  // 1..tc::kChannelCount
-  tc::JmriPayload payload;
+struct Message {
+  enum class Kind : uint8_t { Turnout, JmriState };
+  Kind kind;
+  uint8_t channel;              // Turnout: 1..tc::kChannelCount
+  tc::JmriPayload payload;      // Turnout
+  tc::JmriState jmriState;      // JmriState: <channel>track/state
+  char text[16];                // JmriState: the payload, cut short, for the log
   bool retained;
 };
 
@@ -41,8 +45,8 @@ bool mqttUp();
 void onPortalOpened(bool wifiFailed);
 void onPortalClosed();
 
-// Takes the next turnout message received from the broker.
-bool nextTurnoutMessage(TurnoutMessage* message);
+// Takes the next turnout or JMRI state message received from the broker.
+bool nextMessage(Message* message);
 
 const char* turnoutName(uint8_t channel);
 
