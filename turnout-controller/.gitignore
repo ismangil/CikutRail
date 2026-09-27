@@ -1,3 +1,4 @@
 .pio/
 .vscode/
 src/local_settings.h
+__pycache__/
