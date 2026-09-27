@@ -109,8 +109,9 @@ src/
   net.*             Wi-Fi + ESP-IDF esp-mqtt client: QoS 2, auto-reconnect,
                     last will                                         (phase 2)
   settings.*        network settings in flash (Preferences/NVS)       (phase 2)
-  portal.*          setup access point and captive page; later the
-                    config page and OTA                               (phase 2, 4)
+  portal.*          setup access point and captive page               (phase 2)
+  web.*             one web server for the setup and config pages     (phase 4)
+  config_page.*     config page on the home network, admin login      (phase 4)
 test/               PC unit tests for lib/turnout_core
 tools/mqtt_exercise.py   drives a broker the way JMRI does              (phase 2)
 ```
@@ -146,8 +147,8 @@ M5Stack products, and some of those pins are turnout outputs here.
 Restarts are treated as unsafe: whether the pin latch holds through a
 reset was never measured (the phase 1 reset tests were skipped), and a
 reset can make THROWN turnouts pulse. So the firmware never restarts
-itself: settings apply in place (the setup page, `config`). OTA in
-phase 4 needs a restart; how to make that one safe is decided there.
+itself: settings apply in place (the setup page, the config page,
+`config`), and phase 4 leaves out OTA and a Reboot button.
 Details in WIRING.md, "Power sequencing through 5VOUT".
 
 ### Command handling
@@ -190,18 +191,18 @@ Details in WIRING.md, "Power sequencing through 5VOUT".
 
 ### Config page
 
-Also served afterwards at `http://<node>.local` (mDNS), behind an admin
-password.
+The config page is served at `http://<node>.local` (mDNS) on the home
+network, behind an admin password (built in phase 4, below).
 
 | Section | Settings (defaults) |
 |---|---|
 | Wi-Fi | SSID, password |
 | MQTT | host, port (1883), username, password, client ID (node name) |
 | JMRI | channel (empty; older JMRI uses `/trains/`) |
-| Node | node name, admin password |
+| Node | node name, admin password (random, shown on the USB console) |
 | Turnouts (G1–G11) | enabled, JMRI name (`101`–`111` → `MT101`–`MT111`), test button |
-| Behaviour | output stage (`direct` / `open-collector`), startup level (`restore` / `low`), JMRI offline (`hold` / `low`), stagger ms (0), minimum interval per turnout ms (0), feedback topic (off) |
-| Maintenance | OTA firmware upload, reboot, factory reset |
+| Behaviour | startup level (`restore` / `low`), JMRI offline (`hold` / `low`), stagger ms (0), minimum interval per turnout ms (0); output stage and feedback topic not built |
+| Maintenance | factory reset (OTA and reboot left out: they need a restart) |
 
 Implementation: one small server on Arduino `WebServer` + `DNSServer`,
 used for both first setup and later edits. WiFiManager is not used: its
@@ -239,7 +240,11 @@ Each phase is tested on real hardware before the next starts.
    drive, JMRI-offline policy, stagger, minimum interval, set from the
    console (`config`) and saved in flash. No firmware-initiated restarts.
    Procedure in [PHASE3_BENCH.md](PHASE3_BENCH.md).
-4. **Setup and config.** Captive portal, config page, mDNS, OTA.
+4. **Setup and config.** Config page on the home network (mDNS, admin
+   login) for network, turnout names, behaviour, admin password and
+   factory reset; turnout test buttons. No OTA and no Reboot button, by
+   decision: firmware stays on USB, and the node never restarts itself.
+   Procedure in [PHASE4_BENCH.md](PHASE4_BENCH.md).
 5. **Health.** LED states, long press, PM1 watchdog.
 6. **Optional.** MONITORING feedback topic; per-pin sensor mode
    (emulating JMRI Pi sensors) if inputs are needed later.

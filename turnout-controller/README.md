@@ -6,10 +6,10 @@ It drives up to 11 turnouts through IoTT GreenHat Coil Driver boards from
 GPIO G1–G11, and behaves like JMRI's Raspberry Pi GPIO turnouts: `CLOSED`
 drives the pin HIGH, `THROWN` drives it LOW, as a steady level.
 
-**Status:** phase 3. The node takes JMRI MQTT turnout commands over Wi-Fi,
-set up from its own access point, and restores the turnout levels at
-startup; stagger, minimum interval and the JMRI-offline policy are set
-from the USB console (`config`).
+**Status:** phase 4. The node takes JMRI MQTT turnout commands over Wi-Fi,
+is set up from its own access point, and has a config page on the home
+network at `http://<node>.local` (turnout names, test buttons, behaviour,
+network, admin password, factory reset). Firmware updates stay on USB.
 
 - [Plan](docs/PLAN.md): design, behaviour, build phases
 - [Wiring](docs/WIRING.md): pin map, GreenHat hookup and behaviour, power
@@ -19,6 +19,7 @@ from the USB console (`config`).
   connection, MQTT tests
 - [Phase 3 bench test](docs/PHASE3_BENCH.md): startup policy, stagger,
   minimum interval, JMRI offline
+- [Phase 4 bench test](docs/PHASE4_BENCH.md): config page
 - Layout-wide topic rules: [../docs/MQTT_CONVENTIONS.md](../docs/MQTT_CONVENTIONS.md)
 
 ## Build
