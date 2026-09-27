@@ -89,24 +89,36 @@ PlatformIO + Arduino-ESP32, build target `[env:stamp-s3bat]`, plus
 `[env:native]` for PC unit tests.
 
 ```
+lib/turnout_core/   hardware-free logic, built for the board and for PC tests
+  channels.*        channel ↔ GPIO table, forbidden-pin checks        (phase 1)
+  turnout_state.h   CLOSED = HIGH, THROWN = LOW                       (phase 1)
+  command.*         serial console commands                           (phase 1)
+  level_snapshot.*  pin levels kept in RTC memory across resets       (phase 1)
+  jmri_protocol.*   topic/payload decoding
+  config.*          settings validation
 src/
-  main.cpp          startup order, main loop
-  config.*          settings in flash (Preferences/NVS), pin validation
-  turnout_bank.*    11 channels: name ↔ GPIO, drive, save state, stagger,
-                    minimum interval
+  main.cpp          startup order, main loop, console                 (phase 1)
+  turnout_bank.*    drive pins, pin latch, restore; later stagger and
+                    minimum interval                                  (phase 1)
+  power.*           PM1: 5VOUT, voltages; later LED, button, watchdog (phase 1)
+  settings.*        settings in flash (Preferences/NVS)
   mqtt_link.*       ESP-IDF esp-mqtt client: QoS 1/2, auto-reconnect, last will
-  jmri_protocol.*   topic/payload decoding; pure logic, unit-tested on PC
   portal.*          captive portal, web config, OTA upload
-  health.*          M5Unified: battery, charging, LED, button, 5VOUT, PM1 watchdog
-test/               PC unit tests (protocol, config validation)
+test/               PC unit tests for lib/turnout_core
 tools/mqtt_exercise.py   drives a broker the way JMRI does
 ```
+
+The PM1 is driven with M5Stack's lightweight
+[M5PM1](https://github.com/m5stack/M5PM1) library rather than M5Unified.
+M5Unified detects the board by probing pins and displays used on other
+M5Stack products, and some of those pins are turnout outputs here.
 
 ### Startup order
 
 1. Load config from flash.
 2. Drive every enabled pin to its startup level (restore or low), as
-   early in boot as possible to shorten the time the pins float, and
+   early in boot as possible to shorten the time the pins float (from
+   Arduino's `initVariant()`, before `setup()`), and
    latch it (`gpio_hold_en`) to try to keep outputs steady across
    software resets and OTA reboots. Phase 1 measures the float time and
    which reset types the latch survives (a PM1 button reset or power
@@ -119,9 +131,11 @@ tools/mqtt_exercise.py   drives a broker the way JMRI does
 6. Subscribe to each turnout's command topic. Retained messages set each
    turnout to its last commanded state.
 
-Planned restarts (OTA, config save, reboot from the web page) first turn
-5VOUT off, so no turnout moves while the pins float. Details and
-reasoning in WIRING.md, "Power sequencing through 5VOUT".
+Planned restarts (OTA, config save, reboot from the web page) rely on the
+pin latch holding every pin through the restart. Whether turning 5VOUT
+off first helps as well is a phase 1 test: the driven pins partly power
+the GreenHat's 5 V rail through its pull-ups, so it isn't certain.
+Details in WIRING.md, "Power sequencing through 5VOUT".
 
 ### Command handling
 

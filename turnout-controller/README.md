@@ -6,21 +6,37 @@ It drives up to 11 turnouts through IoTT GreenHat Coil Driver boards from
 GPIO G1–G11, and behaves like JMRI's Raspberry Pi GPIO turnouts: `CLOSED`
 drives the pin HIGH, `THROWN` drives it LOW, as a steady level.
 
-**Status:** planning. No firmware yet.
+**Status:** phase 1, bench firmware. The pins are driven from USB serial
+commands; there's no Wi-Fi or MQTT yet.
 
 - [Plan](docs/PLAN.md): design, behaviour, build phases
 - [Wiring](docs/WIRING.md): pin map, GreenHat hookup and behaviour, power
+- [Phase 1 bench test](docs/PHASE1_BENCH.md): what to test on the bench,
+  and the results table
 - Layout-wide topic rules: [../docs/MQTT_CONVENTIONS.md](../docs/MQTT_CONVENTIONS.md)
+
+## Build
+
+Needs [PlatformIO](https://platformio.org/) (`pip install platformio`).
+
+```
+pio test -e native                   unit tests on the PC
+pio run -e stamp-s3bat -t upload     build and flash over USB-C
+pio device monitor -e stamp-s3bat    serial console (type help)
+```
+
+GitHub Actions runs the unit tests and builds the firmware on every push
+that touches this folder; the built `.bin` files are attached to the run.
 
 ## Layout
 
 ```
 turnout-controller/
-├── platformio.ini   (phase 1)
-├── src/             firmware
-├── test/            unit tests that run on a PC
-├── tools/           test helpers (MQTT exerciser)
+├── platformio.ini
+├── lib/turnout_core/   hardware-free logic (channels, commands, level
+│                       snapshot); built for the board and for PC tests
+├── src/                firmware: pin driver, PM1 power chip, console
+├── test/               unit tests for lib/turnout_core
+├── tools/              test helpers (MQTT exerciser, phase 2)
 └── docs/
 ```
-
-Build, flash and first-start instructions will be added with the firmware.

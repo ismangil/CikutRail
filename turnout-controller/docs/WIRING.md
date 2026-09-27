@@ -116,9 +116,12 @@ its input takes the wrong level.
    - **Cold start:** the node drives its pins to the restored levels
      first, then turns 5VOUT on. THROWN turnouts don't pulse; CLOSED
      turnouts get one CLOSED pulse and don't move.
-   - **Planned restarts** (firmware update, config save): the node turns
-     5VOUT off, restarts, restores its pins, then turns 5VOUT on again.
-     No turnout moves.
+   - **Planned restarts** (firmware update, config save): the node
+     relies on the pin latch to hold every pin through the restart.
+     Turning 5VOUT off first might add a margin, but it isn't certain:
+     pins driven HIGH keep partly powering the GreenHat's 5 V rail
+     through its pull-ups, and the delay capacitors can keep the XOR gate
+     alive while the pins float. Phase 1 tests both.
    - **Unplanned resets** (crash, watchdog, PM1 button reset) happen
      with 5VOUT still on, so item 1 applies. Phase 1 checks whether the
      PM1 keeps 5VOUT on through each kind of ESP32 reset.
