@@ -2,8 +2,10 @@
 
 Phase 2 adds Wi-Fi and MQTT: the node subscribes to JMRI's MQTT turnout
 topics and drives the pins as JMRI's Raspberry Pi GPIO turnouts would.
-Settings are compiled in for now (phase 4 adds the config page). The USB
-console from phase 1 still works alongside.
+The network settings are entered on a setup page served from the node's
+own access point and kept in flash; the turnout names are compiled in
+until the phase 4 config page. The USB console from phase 1 still works
+alongside.
 
 ## Setup
 
@@ -27,33 +29,66 @@ sudo systemctl restart mosquitto
 ```
 
 This replaces the localhost-only listener, so JMRI and the test tool
-need the same login. Give the Pi a fixed address (a DHCP reservation on
+need the same login.
+
+Or, on a private network, without a login (anyone on the LAN can then
+move turnouts):
+
+```
+printf 'listener 1883\nallow_anonymous true\n' | sudo tee /etc/mosquitto/conf.d/cikutrail.conf
+sudo systemctl restart mosquitto
+```
+
+This layout's broker runs this way. Give the Pi a fixed address (a DHCP reservation on
 the router): the node connects by IP address, since it doesn't resolve
 `.local` names.
 
-### 2. Node settings
-
-```
-cd turnout-controller
-cp src/local_settings.example.h src/local_settings.h
-```
-
-Fill in Wi-Fi, broker address and login, JMRI channel and node name.
-`local_settings.h` is git-ignored, so the passwords stay out of the
-repository. Without it the firmware builds and runs with Wi-Fi off.
+### 2. Node settings: the setup page
 
 Flash as in phase 1 (name the S3Bat's port by id on a Pi with a
-Pi-SPROG), then check the console:
+Pi-SPROG). With nothing saved, the node opens a setup access point and
+prints how to join it:
 
 ```
-net: joining Wi-Fi "..."
+net: no network settings
+portal: open (no network settings saved): join Wi-Fi "CikutRail-440C", password k7mq..., then http://192.168.4.1
+```
+
+The password is random, made on first use and kept in flash; `portal`
+prints it again. Join that network from a phone or laptop; the setup
+page opens by itself (or browse to `http://192.168.4.1`). Fill in:
+
+- **Wi-Fi**: tap your network in the scan list, enter its password.
+- **MQTT broker**: the Pi's IP address, port 1883, user and password
+  blank for an anonymous broker.
+- **JMRI channel**: blank for current JMRI. **Node name**: `turnout1`.
+
+**Save and connect** stores the settings in flash and joins the network
+straight away, without restarting, so the turnouts keep their
+positions. The page then shows the node's address. The setup network
+closes about 30 s after the node joins; reconnect the phone to your
+usual Wi-Fi. The console shows:
+
+```
+portal: settings saved, joining "..."
+net: joining Wi-Fi "..." (settings saved)
 net: Wi-Fi up, IP 192.168.0.x, RSSI -55 dBm
 net: connecting to MQTT 192.168.0.x:1883
 net: MQTT up, subscribed to 11 turnouts
+portal: closed
 ```
 
-`net` shows the same at any time, with each channel's topic and message
-counts.
+The settings survive power cuts and reflashing. `net` shows them (not
+the passwords), each channel's topic and message counts. To change them
+later: `portal on`, then the same page (it is only served on the setup
+network, never on the home network). `net forget` erases them and opens
+the page as on first start. If the saved network can't be joined for
+3 minutes, the access point opens again by itself, and the node keeps
+retrying the saved network every 2 minutes while nobody is on the page.
+
+`src/local_settings.h` (a copy of `local_settings.example.h`,
+git-ignored) can prefill the page, or be used directly while nothing is
+saved.
 
 ### 3. JMRI
 
@@ -81,7 +116,8 @@ $T watch                  # everything the node and JMRI publish
 ## Tests
 
 Keep `$T watch` running in one terminal and the node's console in
-another.
+another. Tests 11–14 cover the setup page; run them after 1–10, or
+first if the node isn't on the network yet.
 
 1. **Connect.** After boot, the console shows Wi-Fi and MQTT up.
    `$T node turnout1` shows `status` = `online` and an `info` JSON
@@ -113,6 +149,20 @@ another.
 10. **Wi-Fi drop (optional).** Restart the access point, or move the node
     out of range and back. The node logs `Wi-Fi down` / `up` and MQTT
     reconnects by itself; nothing moves.
+11. **First setup.** After flashing (nothing saved), the access point
+    opens and the page is reachable; save the settings. Expect the node
+    to join and connect without a reset (the boot report from `boot` is
+    unchanged), the page to show its address, and the access point to
+    close about 30 s later. Nothing moves.
+12. **Bad input.** On the page, save with a 5-character Wi-Fi password,
+    or `abc` as the port. Expect `Not saved: ...` naming the field, and
+    nothing changed.
+13. **Wrong password.** `portal on`, save a wrong Wi-Fi password. Expect
+    the status page to stay at "joining". After 3 minutes the node isn't
+    on Wi-Fi; `portal on` (if it closed), save the right password: it
+    joins. Nothing moves.
+14. **Settings kept.** Unplug USB-C and reconnect. Expect `settings
+    saved` in `net` and MQTT up without the setup page.
 
 ## Results
 
@@ -128,3 +178,7 @@ another.
 | 8 Last will | | |
 | 9 Broker restart | | |
 | 10 Wi-Fi drop | | |
+| 11 First setup | | |
+| 12 Bad input | | |
+| 13 Wrong password | | |
+| 14 Settings kept | | |

@@ -97,16 +97,17 @@ lib/turnout_core/   hardware-free logic, built for the board and for PC tests
   command.*         serial console commands                           (phase 1)
   level_snapshot.*  pin levels kept in RTC memory across resets       (phase 1)
   jmri_protocol.*   topic/payload decoding                            (phase 2)
-  config.*          settings validation
+  net_config.*      network settings validation, setup page form      (phase 2)
 src/
   main.cpp          startup order, main loop, console                 (phase 1)
   turnout_bank.*    drive pins, pin latch, restore; later stagger and
                     minimum interval                                  (phase 1)
   power.*           PM1: 5VOUT, voltages; later LED, button, watchdog (phase 1)
-  settings.*        settings in flash (Preferences/NVS)
   net.*             Wi-Fi + ESP-IDF esp-mqtt client: QoS 2, auto-reconnect,
-                    last will; settings compiled in from local_settings.h (phase 2)
-  portal.*          captive portal, web config, OTA upload
+                    last will                                         (phase 2)
+  settings.*        network settings in flash (Preferences/NVS)       (phase 2)
+  portal.*          setup access point and captive page; later the
+                    config page and OTA                               (phase 2, 4)
 test/               PC unit tests for lib/turnout_core
 tools/mqtt_exercise.py   drives a broker the way JMRI does              (phase 2)
 ```
@@ -164,14 +165,19 @@ Details in WIRING.md, "Power sequencing through 5VOUT".
 ### First start
 
 1. No saved Wi-Fi → the node starts access point `CikutRail-XXXX` (last 4
-   characters of the MAC), with a default password printed on the serial
-   console. LED blinks blue.
+   characters of the MAC). Its password is random, made on first use,
+   kept in flash and printed on the serial console. LED blinks blue.
 2. Joining it opens a captive setup page at `192.168.4.1`, with a list of
    scanned networks.
-3. Save → reboot → join Wi-Fi → connect to MQTT → LED green.
+3. Save → join Wi-Fi → connect to MQTT → LED green. No reboot: a reset
+   can make THROWN turnouts pulse (WIRING.md), so new settings are
+   applied in place. The access point closes 30 s after the node joins.
+   (Built in phase 2; the LED comes in phase 5.)
 4. If Wi-Fi can't be joined for about 3 minutes, the setup access point
-   reopens. A long button press does the same at any time. Turnout pins
-   keep their levels throughout.
+   reopens, and the node retries the saved network every 2 minutes while
+   nobody is on the page. A long button press (phase 5) or the console's
+   `portal on` opens it at any time. Turnout pins keep their levels
+   throughout.
 
 ### Config page
 
@@ -214,8 +220,10 @@ Each phase is tested on real hardware before the next starts.
    coil-off, 5VOUT and cold-start checks. The reset checks (float time,
    the pin latch, G3, 5VOUT through a reset, planned restart) were
    skipped and stay open.
-2. **MQTT.** Wi-Fi + broker with a temporary compiled-in settings file.
-   JMRI turnouts in DIRECT mode, checked against a JMRI panel.
+2. **MQTT.** Wi-Fi + broker. The first-setup part of phase 4 is brought
+   forward: the setup access point and page for Wi-Fi, MQTT, channel and
+   node name, saved in flash, applied without a reboot. Turnout names stay
+   compiled in. JMRI turnouts in DIRECT mode, checked against a JMRI panel.
    `tools/mqtt_exercise.py` for repeatable tests. Procedure in
    [PHASE2_BENCH.md](PHASE2_BENCH.md).
 3. **Startup behaviour.** Saved state, restore/low policy, pin latching
