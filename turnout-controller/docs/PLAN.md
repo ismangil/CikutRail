@@ -18,7 +18,7 @@ Taken from JMRI's source (`jmri/jmrix/pi/RaspberryPiTurnout.java`,
 |---|---|---|
 | Pin level | Pi: CLOSED = HIGH, THROWN = LOW; "Inverted" swaps them | `CLOSED` → HIGH, `THROWN` → LOW, steady (not pulsed) |
 | Inversion | MQTT turnouts apply "Inverted" in JMRI before publishing | The node never inverts; JMRI's checkbox works as on the Pi |
-| Topic | `<channel>track/turnout/{name}`, same topic for send and receive | Subscribe to `<channel>track/turnout/<name>`; channel configurable |
+| Topic | `<channel>track/turnout/{name}`, same topic for send and receive | Subscribe to `<channel>track/turnout/<name>`; channel configurable (empty on this layout) |
 | Delivery | Retained, QoS 2 | Retained commands restore every turnout on reconnect |
 | Other payloads | `UNKNOWN`, `INCONSISTENT` | Logged, pin untouched |
 | Startup | Pi pin created LOW | Configurable (see below) |
@@ -126,8 +126,11 @@ M5Stack products, and some of those pins are turnout outputs here.
    latch it (`gpio_hold_en`) to try to keep outputs steady across
    software resets and OTA reboots. The float time and which reset types
    the latch survives are still unmeasured (the phase 1 reset tests were
-   skipped); the pins are driven about 100 ms after app start. A power
-   cycle starts cold with no movement.
+   skipped). The pins are driven about 100 ms after app start in the
+   phase 1 firmware and about 210 ms in phase 2, on every power-on (the
+   cause is still to be found); phase 3 should drive them before
+   Arduino's start-up code runs. A power cycle starts cold with no
+   movement.
 3. Turn on 5VOUT (GreenHat logic power, PM1 G1) only after the pins are
    at their levels, so THROWN turnouts don't pulse at startup.
 4. Start Wi-Fi (modem sleep off for low latency).
@@ -236,5 +239,12 @@ Each phase is tested on real hardware before the next starts.
 
 ## Open items
 
-- Confirm the JMRI channel in use and pick each node's number block
-  (MQTT_CONVENTIONS.md).
+- Losing node power with the coil supply still on makes CLOSED turnouts
+  pulse THROWN (WIRING.md, power sequencing). Decide whether the layout's
+  supplies need arranging so this can't happen, or whether the retained
+  restore is enough.
+- Phase 2 bench: ch2's pad read HIGH at a power-on, before the firmware
+  drove it, with 5VOUT off. Not seen in phase 1; cause unknown.
+- The USB console occasionally loses a line of output, and stray input
+  arrives when the port reappears (likely ModemManager; see
+  PHASE1_BENCH.md for the udev rule).

@@ -11,7 +11,9 @@ own docs.
   the retained messages to recover their state after a reboot or reconnect.
 - **Channel** (JMRI's base topic, written `<channel>` below) is empty by
   default in current JMRI. Older JMRI versions defaulted to `/trains/`. All
-  nodes must be configured with the same channel as JMRI.
+  nodes must be configured with the same channel as JMRI. This layout's
+  JMRI uses an **empty** channel (checked 2026-09-27: it publishes on
+  `track/turnout/101`).
 
 ## Turnouts
 
@@ -37,7 +39,7 @@ own docs.
 | Range | Owner |
 |---|---|
 | 1–99 | reserved (e.g. mirroring existing Raspberry Pi `PT<n>` names) |
-| 101–199 | turnout node 1 |
+| 101–199 | turnout node 1 (`turnout1`; channels 1–11 are 101–111) |
 | 201–299 | turnout node 2 |
 | … | one block per further node |
 

@@ -182,3 +182,40 @@ first if the node isn't on the network yet.
 | 12 Bad input | | |
 | 13 Wrong password | | |
 | 14 Settings kept | | |
+
+### Run 1, 2026-09-27
+
+Same bench as phase 1 run 1 (one GreenHat, Kato snap coil on channel 1,
+S3Bat on USB-C), mosquitto on the Pi listening anonymously on the LAN.
+Test 2 used JMRI PanelPro; the other tests used `tools/mqtt_exercise.py`.
+
+| Test | Result | Notes |
+|---|---|---|
+| 1 Connect | Pass | Wi-Fi at -64 dBm, MQTT up, 11 topics subscribed, retained `online` and `info`. |
+| 2 JMRI commands | Pass | MT101 Closed / Thrown in JMRI's turnout table: one movement each. JMRI read the retained state at start (MT101 showed THROWN) and publishes retained at QoS 2 on `track/turnout/101`, so its channel is empty. |
+| 3 Repeat is a no-op | Pass | Second THROWN counted `unchanged`, no pulse. |
+| 4 Other payloads | Pass | UNKNOWN, INCONSISTENT, `closed`: ignored, no movement. |
+| 5 Repeated changes | Pass | 10 clean movements. |
+| 6 Burst | Pass | 11 CLOSED then 11 THROWN: 22 applied, 0 dropped. |
+| 7 Retained restore | Pass | Retained CLOSED re-applied after a power cycle; the turnout ended CLOSED. But the unplug itself fired a THROWN pulse (see below). |
+| 8 Last will | Pass | `offline` within 30 s of the unplug; `online` about 2 s after power-up. Nothing moved with all channels THROWN. |
+| 9 Broker restart | Pass | `MQTT down`, then up by itself; 11 retained commands `unchanged`, nothing moved. |
+| 10 Wi-Fi drop | Not run | Optional. |
+| 11 First setup | Pass | Setup page from the phone; joined without a reset (boot report unchanged); access point closed by itself. |
+| 12 Bad input | Not run | |
+| 13 Wrong password | Not run | |
+| 14 Settings kept | Pass | Power cycles in 7 and 8 came back with `settings: saved`, no setup page. |
+
+Findings:
+
+- **Power loss with a turnout CLOSED fires a THROWN pulse.** Unplugging
+  USB-C with ch1 CLOSED (pin HIGH) and the coil supply on moved the
+  turnout to THROWN; with ch1 THROWN nothing moved. The retained restore
+  then put it back to CLOSED. Recorded in WIRING.md.
+- **Pins are driven about 210 ms after app start** (phase 1: about
+  103 ms), on every power-on, not only the first boot after flashing.
+- **ch2's pad read HIGH at a power-on**, before the firmware drove it,
+  with 5VOUT off. Cause unknown.
+- **The console sometimes loses output** (one `unchanged` line, one
+  `status` reply), and stray input arrives after the port reappears. The
+  node's own counters were right each time.

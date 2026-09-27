@@ -129,6 +129,13 @@ its input takes the wrong level.
      on through each kind of ESP32 reset is still open.
    - With the Pi's always-on 5 V, every channel pulsed CLOSED at GreenHat
      power-up and THROWN turnouts were then put back.
+   - **Node power loss** (seen on the phase 2 bench): when the node loses
+     power while the coil supply stays on, every CLOSED (HIGH) channel
+     fires one THROWN pulse. The pin falls to 0 V faster than the
+     GreenHat's delayed side, which is an ordinary HIGH→LOW edge. THROWN
+     channels don't move. Firmware can't prevent it, since the node is
+     unpowered. On restart the retained MQTT commands put those turnouts
+     back with one CLOSED pulse, so they end where JMRI left them.
 3. **3.3 V into 5 V logic.** The XOR gate (U3) must be the
    Schmitt-trigger type: its hysteresis is what makes the delayed side
    switch cleanly once. (The BOM lists a plain 74HC86 because JLCPCB
