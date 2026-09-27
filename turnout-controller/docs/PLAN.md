@@ -54,6 +54,9 @@ in [WIRING.md](WIRING.md)):
   that pulse short and can leave the turnout half-thrown. When set (to at
   least the trimmer's pulse length), a reversal is held back until the
   interval has passed. Only the latest command is kept.
+- **Output stage:** `direct` (default, pin level as on the Pi) or
+  `open-collector` (pin inverted, for a transistor stage between the node
+  and the GreenHat; see WIRING.md).
 - **Button single-click reset:** the PM1 resets the ESP32 on a single
   click by default. A reset makes THROWN turnouts pulse, so the config page
   can disable single-click reset (double-click power off stays).
@@ -72,9 +75,12 @@ Details in [WIRING.md](WIRING.md).
 - The button goes to the PM1: single-click = reset and double-click =
   power off are its defaults. The firmware reads a long press through the
   PM1, and can disable single-click reset (see above).
-- GreenHat inputs: 10.2 kΩ pull-up to 5 V, 3.3 V drive works (as on the
-  Pi) but is below the 74HC86's guaranteed 5 V HIGH threshold. Header
-  pin 2 carries the GreenHat's 5 V and must not be connected to the node.
+- GreenHat inputs: 10.2 kΩ pull-up to 5 V, Schmitt-trigger XOR delay
+  stage at 5 V. Direct 3.3 V drive works (as on the Pi) but the gate's
+  worst-case threshold isn't guaranteed below 3.3 V. An optional
+  open-collector transistor stage per channel removes that doubt.
+  Header pin 2 is the GreenHat's 5 V logic rail: unconnected if its J6
+  bridges are fitted, fed from the layout's 5 V if not.
 
 ## Firmware design
 
@@ -155,7 +161,7 @@ password.
 | JMRI | channel (empty; older JMRI uses `/trains/`) |
 | Node | node name, admin password |
 | Turnouts (G1–G11) | enabled, JMRI name (`101`–`111` → `MT101`–`MT111`), test button |
-| Behaviour | startup level (`restore` / `low`), JMRI offline (`hold` / `low`), stagger ms (0), minimum interval per turnout ms (0), button single-click reset (on), feedback topic (off) |
+| Behaviour | output stage (`direct` / `open-collector`), startup level (`restore` / `low`), JMRI offline (`hold` / `low`), stagger ms (0), minimum interval per turnout ms (0), button single-click reset (on), feedback topic (off) |
 | Maintenance | OTA firmware upload, reboot, factory reset |
 
 Implementation: one small server on Arduino `WebServer` + `DNSServer`,
@@ -171,7 +177,7 @@ Each phase is tested on real hardware before the next starts.
    On a GreenHat, check:
    - each command fires exactly one pulse in the right direction;
    - the coil current stops after the pulse at both levels (confirms the
-     74HC86 reads the 3.3 V HIGH);
+     Schmitt XOR reads the 3.3 V HIGH);
    - how long pins float at power-up and reset, and which resets the pin
      latch survives (software restart, watchdog, PM1 button reset);
    - G3 behaves like the other pins through a reset.
@@ -187,6 +193,10 @@ Each phase is tested on real hardware before the next starts.
    (emulating JMRI Pi sensors) if inputs are needed later.
 
 ## Open items
+
+- GreenHat J6: bridged (onboard 5 V regulator) or open (5 V fed on header
+  pin 2, as from the Pi)? This decides whether the node's wiring carries
+  5 V to the headers.
 
 - Confirm the JMRI channel in use and pick each node's number block
   (MQTT_CONVENTIONS.md).
