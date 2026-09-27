@@ -20,6 +20,8 @@ enum class CommandType : uint8_t {
   Pm1,        // pm1
   Pm1Buttons, // pm1 btn
   Net,        // net
+  NetForget,  // net forget
+  Portal,     // portal [on|off]
 };
 
 enum class ResetKind : uint8_t { Soft, Panic, Watchdog };

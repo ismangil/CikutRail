@@ -1,6 +1,6 @@
-// Turnout node firmware. Phase 2: JMRI MQTT turnouts over Wi-Fi
-// (docs/PHASE2_BENCH.md), plus the phase 1 bench console on USB serial
-// (docs/PHASE1_BENCH.md).
+// Turnout node firmware. Phase 2: JMRI MQTT turnouts over Wi-Fi, set up
+// through a setup page (docs/PHASE2_BENCH.md), plus the phase 1 bench
+// console on USB serial (docs/PHASE1_BENCH.md).
 #include <Arduino.h>
 #include <esp_system.h>
 
@@ -8,6 +8,7 @@
 #include "command.h"
 #include "jmri_protocol.h"
 #include "net.h"
+#include "portal.h"
 #include "power.h"
 #include "turnout_bank.h"
 
@@ -132,6 +133,8 @@ void printHelp() {
       "  pm1                       battery, input and 5 V readings\n"
       "  pm1 btn                   button settings, and whether it was pressed\n"
       "  net                       Wi-Fi, MQTT, turnout topics and message counts\n"
+      "  net forget                erase the saved network settings, open the setup portal\n"
+      "  portal [on|off]           show or switch the setup access point and page\n"
       "  help | ?                  this list\n"
       "Any command stops a running cycle.");
 }
@@ -255,6 +258,19 @@ void execute(const tc::Command& command) {
     case tc::CommandType::Net:
       net::printStatus();
       break;
+    case tc::CommandType::NetForget:
+      net::forget();
+      break;
+    case tc::CommandType::Portal:
+      if (command.hasSwitch) {
+        if (command.switchOn) {
+          portal::open(portal::Reason::Console);
+        } else {
+          portal::close();
+        }
+      }
+      portal::printStatus();
+      break;
   }
 }
 
@@ -347,5 +363,6 @@ void loop() {
   runCycle();
   applyTurnoutMessages();
   net::loop();
+  portal::loop();
   delay(1);
 }

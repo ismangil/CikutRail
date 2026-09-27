@@ -150,8 +150,13 @@ ParseResult parseCommand(const char* line) {
     return succeed(command);
   }
   if (equalsIgnoreCase(verb, "net")) {
-    if (count != 1) return fail("usage: net");
-    command.type = CommandType::Net;
+    if (count == 1) {
+      command.type = CommandType::Net;
+    } else if (count == 2 && equalsIgnoreCase(tokens[1], "forget")) {
+      command.type = CommandType::NetForget;
+    } else {
+      return fail("usage: net [forget]");
+    }
     return succeed(command);
   }
   if (equalsIgnoreCase(verb, "pm1")) {
@@ -195,6 +200,7 @@ ParseResult parseCommand(const char* line) {
 
   if (equalsIgnoreCase(verb, "5v")) return parseSwitch(CommandType::FiveVolt, tokens, count);
   if (equalsIgnoreCase(verb, "hold")) return parseSwitch(CommandType::Hold, tokens, count);
+  if (equalsIgnoreCase(verb, "portal")) return parseSwitch(CommandType::Portal, tokens, count);
 
   if (equalsIgnoreCase(verb, "reset")) {
     if (count < 2 || count > 3) return fail("usage: reset soft|panic|wdt [5v-off]");

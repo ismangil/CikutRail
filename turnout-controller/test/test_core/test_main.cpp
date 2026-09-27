@@ -6,6 +6,7 @@
 #include "command.h"
 #include "jmri_protocol.h"
 #include "level_snapshot.h"
+#include "net_config.h"
 #include "turnout_state.h"
 
 using namespace tc;
@@ -89,6 +90,12 @@ void test_simple_commands() {
   TEST_ASSERT_FALSE(parseCommand("pm1 led").ok);
   TEST_ASSERT_TRUE(parseCommand("NET").command.type == CommandType::Net);
   TEST_ASSERT_FALSE(parseCommand("net up").ok);
+  TEST_ASSERT_TRUE(parseCommand("net Forget").command.type == CommandType::NetForget);
+  ParseResult portal = parseCommand("portal on");
+  TEST_ASSERT_TRUE(portal.ok && portal.command.type == CommandType::Portal && portal.command.hasSwitch &&
+                   portal.command.switchOn);
+  TEST_ASSERT_FALSE(parseCommand("portal").command.hasSwitch);
+  TEST_ASSERT_FALSE(parseCommand("portal maybe").ok);
   TEST_ASSERT_FALSE(parseCommand("boot again").ok);
   TEST_ASSERT_FALSE(parseCommand("status now").ok);
 }
@@ -313,6 +320,174 @@ void test_topic_matching() {
   TEST_ASSERT_EQUAL_UINT8(2, matchTurnoutTopic("", kNames, kChannelCount, buffer, 17));
 }
 
+
+// --- network settings ---
+
+NetConfig savedConfig() {
+  NetConfig config;
+  clearNetConfig(&config);
+  copyField(config.wifiSsid, sizeof(config.wifiSsid), "home");
+  copyField(config.wifiPassword, sizeof(config.wifiPassword), "wifisecret");
+  copyField(config.mqttHost, sizeof(config.mqttHost), "192.168.0.198");
+  copyField(config.mqttUser, sizeof(config.mqttUser), "jmri");
+  copyField(config.mqttPassword, sizeof(config.mqttPassword), "mqttsecret");
+  return config;
+}
+
+NetForm formFrom(const NetConfig& c) {
+  NetForm form = {c.wifiSsid, "", c.mqttHost, "1883", c.mqttUser, "", c.jmriChannel, c.nodeName};
+  return form;
+}
+
+void test_net_config_defaults_and_fields() {
+  NetConfig config;
+  clearNetConfig(&config);
+  TEST_ASSERT_EQUAL_UINT16(1883, config.mqttPort);
+  TEST_ASSERT_EQUAL_STRING("turnout1", config.nodeName);
+  TEST_ASSERT_EQUAL_STRING("", config.wifiSsid);
+  const char* error = nullptr;
+  TEST_ASSERT_FALSE(validateNetConfig(config, &error));  // no network yet
+  TEST_ASSERT_NOT_NULL(error);
+
+  char small[4];
+  TEST_ASSERT_TRUE(copyField(small, sizeof(small), "abc"));
+  TEST_ASSERT_FALSE(copyField(small, sizeof(small), "abcd"));
+  TEST_ASSERT_EQUAL_STRING("", small);
+  TEST_ASSERT_TRUE(copyField(small, sizeof(small), nullptr));
+  TEST_ASSERT_EQUAL_STRING("", small);
+}
+
+void test_port_and_host_rules() {
+  uint16_t port = 0;
+  TEST_ASSERT_TRUE(parsePort("1883", &port));
+  TEST_ASSERT_EQUAL_UINT16(1883, port);
+  TEST_ASSERT_TRUE(parsePort("65535", &port));
+  TEST_ASSERT_FALSE(parsePort("0", &port));
+  TEST_ASSERT_FALSE(parsePort("65536", &port));
+  TEST_ASSERT_FALSE(parsePort("-1", &port));
+  TEST_ASSERT_FALSE(parsePort("18 83", &port));
+  TEST_ASSERT_FALSE(parsePort("", &port));
+  TEST_ASSERT_FALSE(parsePort(nullptr, &port));
+
+  TEST_ASSERT_TRUE(validHost("192.168.0.198"));
+  TEST_ASSERT_TRUE(validHost("broker-1.lan"));
+  TEST_ASSERT_FALSE(validHost(""));
+  TEST_ASSERT_FALSE(validHost("mqtt://host"));
+  TEST_ASSERT_FALSE(validHost("two words"));
+  TEST_ASSERT_FALSE(validHost(".lan"));
+  TEST_ASSERT_FALSE(validHost("host."));
+  TEST_ASSERT_FALSE(validHost("a..b"));
+}
+
+void test_net_config_validation() {
+  NetConfig config = savedConfig();
+  const char* error = "unset";
+  TEST_ASSERT_TRUE(validateNetConfig(config, &error));
+  TEST_ASSERT_NULL(error);
+
+  copyField(config.wifiPassword, sizeof(config.wifiPassword), "short");
+  TEST_ASSERT_FALSE(validateNetConfig(config, &error));
+  copyField(config.wifiPassword, sizeof(config.wifiPassword), "");  // open network
+  TEST_ASSERT_TRUE(validateNetConfig(config, nullptr));
+
+  config = savedConfig();
+  copyField(config.mqttUser, sizeof(config.mqttUser), "");
+  TEST_ASSERT_FALSE(validateNetConfig(config, &error));  // password without user
+  copyField(config.mqttPassword, sizeof(config.mqttPassword), "");
+  TEST_ASSERT_TRUE(validateNetConfig(config, nullptr));  // anonymous broker
+
+  config = savedConfig();
+  copyField(config.jmriChannel, sizeof(config.jmriChannel), "/trains");
+  TEST_ASSERT_FALSE(validateNetConfig(config, &error));
+  config = savedConfig();
+  copyField(config.nodeName, sizeof(config.nodeName), "turnout 1");
+  TEST_ASSERT_FALSE(validateNetConfig(config, &error));
+}
+
+void test_form_keeps_saved_passwords() {
+  const NetConfig saved = savedConfig();
+  NetConfig out;
+  const char* error = nullptr;
+  NetForm form = formFrom(saved);
+  TEST_ASSERT_TRUE_MESSAGE(applyNetForm(saved, form, &out, &error), error);
+  TEST_ASSERT_EQUAL_STRING("wifisecret", out.wifiPassword);
+  TEST_ASSERT_EQUAL_STRING("mqttsecret", out.mqttPassword);
+
+  form.wifiPassword = "newsecret1";
+  form.mqttPassword = "newmqtt";
+  TEST_ASSERT_TRUE(applyNetForm(saved, form, &out, &error));
+  TEST_ASSERT_EQUAL_STRING("newsecret1", out.wifiPassword);
+  TEST_ASSERT_EQUAL_STRING("newmqtt", out.mqttPassword);
+}
+
+void test_form_changed_network_or_user() {
+  const NetConfig saved = savedConfig();
+  NetConfig out;
+  const char* error = nullptr;
+
+  // A different network with a blank password is an open network.
+  NetForm form = formFrom(saved);
+  form.wifiSsid = "cafe";
+  TEST_ASSERT_TRUE(applyNetForm(saved, form, &out, &error));
+  TEST_ASSERT_EQUAL_STRING("cafe", out.wifiSsid);
+  TEST_ASSERT_EQUAL_STRING("", out.wifiPassword);
+
+  // A different MQTT user doesn't inherit the saved password.
+  form = formFrom(saved);
+  form.mqttUser = "other";
+  TEST_ASSERT_TRUE(applyNetForm(saved, form, &out, &error));
+  TEST_ASSERT_EQUAL_STRING("", out.mqttPassword);
+
+  // No user: anonymous, even if a password was typed.
+  form = formFrom(saved);
+  form.mqttUser = "";
+  form.mqttPassword = "typed";
+  TEST_ASSERT_TRUE(applyNetForm(saved, form, &out, &error));
+  TEST_ASSERT_EQUAL_STRING("", out.mqttUser);
+  TEST_ASSERT_EQUAL_STRING("", out.mqttPassword);
+}
+
+void test_form_first_setup_and_errors() {
+  NetConfig empty;
+  clearNetConfig(&empty);
+  NetConfig out;
+  const char* error = nullptr;
+  NetForm form = {"home", "wifisecret", "  192.168.0.198 ", "1883", "", "", "", "turnout1"};
+  TEST_ASSERT_TRUE_MESSAGE(applyNetForm(empty, form, &out, &error), error);
+  TEST_ASSERT_EQUAL_STRING("192.168.0.198", out.mqttHost);
+  TEST_ASSERT_EQUAL_UINT16(1883, out.mqttPort);
+
+  NetForm bad = form;
+  bad.mqttPort = "abc";
+  TEST_ASSERT_FALSE(applyNetForm(empty, bad, &out, &error));
+  TEST_ASSERT_NOT_NULL(error);
+  bad = form;
+  bad.wifiSsid = "";
+  TEST_ASSERT_FALSE(applyNetForm(empty, bad, &out, &error));
+  bad = form;
+  bad.wifiSsid = "123456789012345678901234567890123";  // 33
+  TEST_ASSERT_FALSE(applyNetForm(empty, bad, &out, &error));
+  bad = form;
+  bad.mqttHost = nullptr;
+  TEST_ASSERT_FALSE(applyNetForm(empty, bad, &out, &error));
+  // A failed form leaves *out alone.
+  NetConfig untouched = savedConfig();
+  TEST_ASSERT_FALSE(applyNetForm(empty, bad, &untouched, &error));
+  TEST_ASSERT_EQUAL_STRING("home", untouched.wifiSsid);
+}
+
+void test_html_escape() {
+  char out[32];
+  TEST_ASSERT_TRUE(htmlEscape("a<b>&\"c'", out, sizeof(out)));
+  TEST_ASSERT_EQUAL_STRING("a&lt;b&gt;&amp;&quot;c&#39;", out);
+  TEST_ASSERT_TRUE(htmlEscape("", out, sizeof(out)));
+  TEST_ASSERT_EQUAL_STRING("", out);
+  char small[5];
+  TEST_ASSERT_FALSE(htmlEscape("&", small, sizeof(small)));  // "&amp;" + NUL needs 6
+  TEST_ASSERT_EQUAL_STRING("", small);
+  TEST_ASSERT_TRUE(htmlEscape("abcd", small, sizeof(small)));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_default_channel_table_is_valid);
@@ -336,5 +511,12 @@ int main() {
   RUN_TEST(test_turnout_name_table);
   RUN_TEST(test_turnout_topic);
   RUN_TEST(test_topic_matching);
+  RUN_TEST(test_net_config_defaults_and_fields);
+  RUN_TEST(test_port_and_host_rules);
+  RUN_TEST(test_net_config_validation);
+  RUN_TEST(test_form_keeps_saved_passwords);
+  RUN_TEST(test_form_changed_network_or_user);
+  RUN_TEST(test_form_first_setup_and_errors);
+  RUN_TEST(test_html_escape);
   return UNITY_END();
 }

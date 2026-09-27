@@ -1,7 +1,8 @@
-// Phase 2 settings, compiled in until the config page arrives (phase 4).
-// Copy this file to local_settings.h (git-ignored) and fill it in. Without
-// local_settings.h the firmware builds with these values and stays off
-// Wi-Fi.
+// Compiled-in settings. The network settings are normally entered on the
+// setup page (access point CikutRail-XXXX) and saved in flash; these only
+// prefill that page, or are used while nothing is saved. Copy this file to
+// local_settings.h (git-ignored) to change them. The turnout names are
+// compiled in until the phase 4 config page.
 #pragma once
 
 #include <stdint.h>

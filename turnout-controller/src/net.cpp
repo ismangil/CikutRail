@@ -9,22 +9,16 @@
 #include <atomic>
 
 #include "channels.h"
+#include "portal.h"
 #include "power.h"
-
-#if __has_include("local_settings.h")
-#include "local_settings.h"
-#define NET_HAVE_LOCAL_SETTINGS 1
-#else
-#include "local_settings.example.h"
-#define NET_HAVE_LOCAL_SETTINGS 0
-#endif
+#include "settings.h"
 
 namespace net {
 namespace {
 
-using namespace local_settings;
-
 const uint32_t kInfoIntervalMs = 60000;
+const uint32_t kJoinTimeoutMs = 180000;    // then the setup portal opens
+const uint32_t kPortalRetryMs = 120000;    // Wi-Fi retries while the portal is open
 const int kKeepaliveS = 15;  // the broker publishes the last will ~1.5x this after the node goes silent
 const int kReconnectMs = 5000;
 const UBaseType_t kQueueLength = 32;
@@ -32,9 +26,10 @@ const int kCommandQos = 2;  // as JMRI publishes
 const char kOnline[] = "online";
 const char kOffline[] = "offline";
 
-bool g_enabled = false;
-const char* g_disabledReason = nullptr;
 const char* g_firmware = "";
+tc::NetConfig g_config;
+settings::Source g_source = settings::Source::None;
+bool g_haveConfig = false;
 char g_statusTopic[tc::kMaxTopicLength + 1];
 char g_infoTopic[tc::kMaxTopicLength + 1];
 esp_mqtt_client_handle_t g_client = nullptr;
@@ -43,6 +38,9 @@ bool g_mqttStarted = false;
 bool g_lastWifiUp = false;
 bool g_lastMqttUp = false;
 uint32_t g_lastInfoMs = 0;
+uint32_t g_wifiDownSinceMs = 0;
+bool g_portalRetrying = false;  // portal open after a Wi-Fi failure
+uint32_t g_lastPortalRetryMs = 0;
 
 // Written by the esp-mqtt task, read by the main loop.
 std::atomic<bool> g_mqttUp(false);
@@ -57,19 +55,30 @@ uint32_t g_applied = 0;
 uint32_t g_unchanged = 0;
 uint32_t g_ignored = 0;
 
+const char* const* names() { return settings::turnoutNames(); }
+
 uint8_t subscribedCount() {
   uint8_t count = 0;
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
-    if (kTurnoutNames[i][0] != '\0') ++count;
+    if (names()[i][0] != '\0') ++count;
   }
   return count;
+}
+
+const char* sourceName(settings::Source source) {
+  switch (source) {
+    case settings::Source::Saved: return "saved";
+    case settings::Source::CompiledIn: return "compiled in (local_settings.h)";
+    case settings::Source::None: return "none";
+  }
+  return "";
 }
 
 void subscribeAll(esp_mqtt_client_handle_t client) {
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
-    if (kTurnoutNames[i][0] == '\0') continue;
-    if (tc::turnoutTopic(kJmriChannel, kTurnoutNames[i], topic, sizeof(topic))) {
+    if (names()[i][0] == '\0') continue;
+    if (tc::turnoutTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
       esp_mqtt_client_subscribe(client, topic, kCommandQos);
     }
   }
@@ -95,8 +104,8 @@ void onMqttEvent(void*, esp_event_base_t, int32_t id, void* data) {
         ++g_fragmented;
         break;
       }
-      const uint8_t channel =
-          tc::matchTurnoutTopic(kJmriChannel, kTurnoutNames, tc::kChannelCount, event->topic, event->topic_len);
+      const uint8_t channel = tc::matchTurnoutTopic(g_config.jmriChannel, names(), tc::kChannelCount, event->topic,
+                                                    static_cast<size_t>(event->topic_len));
       if (channel == 0) break;
       ++g_received;
       TurnoutMessage message;
@@ -122,73 +131,131 @@ void publishInfo() {
   g_lastInfoMs = millis();
 }
 
-bool checkSettings() {
-  if (!NET_HAVE_LOCAL_SETTINGS) {
-    g_disabledReason = "no src/local_settings.h (copy local_settings.example.h)";
-  } else if (kWifiSsid[0] == '\0' || kMqttHost[0] == '\0') {
-    g_disabledReason = "Wi-Fi SSID or MQTT host not set in local_settings.h";
-  } else if (!tc::validNodeName(kNodeName)) {
-    g_disabledReason = "node name must be 1-32 letters, digits, '_' or '-'";
-  } else if (!tc::validJmriChannel(kJmriChannel)) {
-    g_disabledReason = "JMRI channel must be empty or end in '/', with no + or #";
-  } else if (!tc::validateTurnoutNames(kTurnoutNames, tc::kChannelCount, &g_disabledReason)) {
-    // g_disabledReason set
-  } else {
-    char topic[tc::kMaxTopicLength + 1];
-    for (uint8_t i = 0; i < tc::kChannelCount && g_disabledReason == nullptr; ++i) {
-      if (kTurnoutNames[i][0] == '\0') continue;
-      if (!tc::turnoutTopic(kJmriChannel, kTurnoutNames[i], topic, sizeof(topic))) {
-        g_disabledReason = "JMRI channel plus turnout name too long";
-      }
+// Leaves the broker cleanly: status offline first, as the last will would.
+void stopMqtt() {
+  if (g_client == nullptr) return;
+  if (g_mqttUp) esp_mqtt_client_publish(g_client, g_statusTopic, kOffline, 0, 1, 1);
+  esp_mqtt_client_destroy(g_client);
+  g_client = nullptr;
+  g_mqttStarted = false;
+  g_mqttUp = false;
+}
+
+// The names are checked here as well as the network settings: they share
+// the topic length limit with the channel.
+const char* checkTopics() {
+  const char* error = nullptr;
+  if (!tc::validateTurnoutNames(names(), tc::kChannelCount, &error)) return error;
+  char topic[tc::kMaxTopicLength + 1];
+  for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+    if (names()[i][0] == '\0') continue;
+    if (!tc::turnoutTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
+      return "JMRI channel plus turnout name too long";
     }
   }
-  return g_disabledReason == nullptr;
+  return nullptr;
+}
+
+void startNetwork() {
+  const char* error = checkTopics();
+  if (error != nullptr) {
+    Serial.printf("net: off: %s\n", error);
+    g_haveConfig = false;
+    return;
+  }
+  snprintf(g_statusTopic, sizeof(g_statusTopic), "cikutrail/%s/status", g_config.nodeName);
+  snprintf(g_infoTopic, sizeof(g_infoTopic), "cikutrail/%s/info", g_config.nodeName);
+
+  esp_mqtt_client_config_t mqtt = {};
+  mqtt.host = g_config.mqttHost;
+  mqtt.port = g_config.mqttPort;
+  mqtt.transport = MQTT_TRANSPORT_OVER_TCP;
+  mqtt.client_id = g_config.nodeName;
+  mqtt.username = g_config.mqttUser[0] != '\0' ? g_config.mqttUser : nullptr;
+  mqtt.password = g_config.mqttPassword[0] != '\0' ? g_config.mqttPassword : nullptr;
+  mqtt.lwt_topic = g_statusTopic;
+  mqtt.lwt_msg = kOffline;
+  mqtt.lwt_qos = 1;
+  mqtt.lwt_retain = 1;
+  mqtt.keepalive = kKeepaliveS;
+  mqtt.reconnect_timeout_ms = kReconnectMs;
+  g_client = esp_mqtt_client_init(&mqtt);
+  if (g_client == nullptr) {
+    Serial.println("net: off: out of memory starting MQTT");
+    g_haveConfig = false;
+    return;
+  }
+  esp_mqtt_client_register_event(g_client, MQTT_EVENT_ANY, onMqttEvent, nullptr);
+
+  WiFi.setHostname(g_config.nodeName);
+  WiFi.mode(portal::isOpen() ? WIFI_AP_STA : WIFI_STA);
+  WiFi.setSleep(false);  // modem sleep adds latency to every command
+  WiFi.setAutoReconnect(!g_portalRetrying);
+  WiFi.begin(g_config.wifiSsid, g_config.wifiPassword);
+  g_haveConfig = true;
+  g_wifiDownSinceMs = millis();
+  Serial.printf("net: joining Wi-Fi \"%s\" (settings %s)\n", g_config.wifiSsid, sourceName(g_source));
 }
 
 }  // namespace
 
 void begin(const char* firmwareVersion) {
   g_firmware = firmwareVersion;
-  if (!checkSettings()) {
-    Serial.printf("net: off: %s\n", g_disabledReason);
-    return;
-  }
-  snprintf(g_statusTopic, sizeof(g_statusTopic), "cikutrail/%s/status", kNodeName);
-  snprintf(g_infoTopic, sizeof(g_infoTopic), "cikutrail/%s/info", kNodeName);
   g_queue = xQueueCreate(kQueueLength, sizeof(TurnoutMessage));
-
-  esp_mqtt_client_config_t config = {};
-  config.host = kMqttHost;
-  config.port = kMqttPort;
-  config.transport = MQTT_TRANSPORT_OVER_TCP;
-  config.client_id = kNodeName;
-  config.username = kMqttUser[0] != '\0' ? kMqttUser : nullptr;
-  config.password = kMqttPassword[0] != '\0' ? kMqttPassword : nullptr;
-  config.lwt_topic = g_statusTopic;
-  config.lwt_msg = kOffline;
-  config.lwt_qos = 1;
-  config.lwt_retain = 1;
-  config.keepalive = kKeepaliveS;
-  config.reconnect_timeout_ms = kReconnectMs;
-  g_client = esp_mqtt_client_init(&config);
-  if (g_queue == nullptr || g_client == nullptr) {
-    g_disabledReason = "out of memory starting MQTT";
-    Serial.printf("net: off: %s\n", g_disabledReason);
+  g_source = settings::loadNet(&g_config);
+  if (g_source == settings::Source::None) {
+    Serial.println("net: no network settings");
+    portal::open(portal::Reason::FirstSetup);
     return;
   }
-  esp_mqtt_client_register_event(g_client, MQTT_EVENT_ANY, onMqttEvent, nullptr);
+  startNetwork();
+}
 
-  WiFi.setHostname(kNodeName);
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);  // modem sleep adds latency to every command
+void applyConfig(const tc::NetConfig& config) {
+  stopMqtt();
+  WiFi.disconnect(false);
+  g_config = config;
+  g_source = settings::Source::Saved;
+  g_portalRetrying = false;  // a fresh attempt with new settings
+  g_lastWifiUp = false;
+  startNetwork();
+}
+
+void forget() {
+  stopMqtt();
+  WiFi.disconnect(false);
+  g_haveConfig = false;
+  g_lastWifiUp = false;
+  settings::forgetNet();
+  settings::loadNet(&g_config);  // compiled-in defaults, to prefill the page
+  g_source = settings::Source::None;
+  Serial.println("net: saved settings erased");
+  portal::open(portal::Reason::FirstSetup);
+}
+
+const tc::NetConfig& config() { return g_config; }
+
+bool mqttUp() { return g_mqttUp; }
+
+void onPortalOpened(bool wifiFailed) {
+  if (!wifiFailed) return;
+  // Stop the radio hopping channels in the background; loop() retries
+  // when nobody is on the setup page.
+  g_portalRetrying = true;
+  g_lastPortalRetryMs = millis();
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect(false);
+}
+
+void onPortalClosed() {
+  g_portalRetrying = false;
+  if (!g_haveConfig) return;
   WiFi.setAutoReconnect(true);
-  WiFi.begin(kWifiSsid, kWifiPassword);
-  g_enabled = true;
-  Serial.printf("net: joining Wi-Fi \"%s\"\n", kWifiSsid);
+  if (WiFi.status() != WL_CONNECTED) WiFi.begin(g_config.wifiSsid, g_config.wifiPassword);
 }
 
 void loop() {
-  if (!g_enabled) return;
+  if (!g_haveConfig) return;
 
   const bool wifiUp = WiFi.status() == WL_CONNECTED;
   if (wifiUp != g_lastWifiUp) {
@@ -196,15 +263,31 @@ void loop() {
     if (wifiUp) {
       Serial.printf("net: Wi-Fi up, IP %s, RSSI %d dBm\n", WiFi.localIP().toString().c_str(),
                     static_cast<int>(WiFi.RSSI()));
+      if (g_portalRetrying) {
+        g_portalRetrying = false;
+        WiFi.setAutoReconnect(true);
+      }
     } else {
       Serial.println("net: Wi-Fi down");
+      g_wifiDownSinceMs = millis();
     }
   }
-  if (wifiUp && !g_mqttStarted) {
+  if (wifiUp && !g_mqttStarted && g_client != nullptr) {
     // esp-mqtt reconnects by itself from here on, through Wi-Fi drops too.
     esp_mqtt_client_start(g_client);
     g_mqttStarted = true;
-    Serial.printf("net: connecting to MQTT %s:%u\n", kMqttHost, kMqttPort);
+    Serial.printf("net: connecting to MQTT %s:%u\n", g_config.mqttHost, g_config.mqttPort);
+  }
+
+  if (!wifiUp) {
+    if (!portal::isOpen() && millis() - g_wifiDownSinceMs >= kJoinTimeoutMs) {
+      Serial.printf("net: Wi-Fi \"%s\" not joined for %lu s\n", g_config.wifiSsid,
+                    static_cast<unsigned long>(kJoinTimeoutMs / 1000));
+      portal::open(portal::Reason::WifiFailed);
+    } else if (g_portalRetrying && millis() - g_lastPortalRetryMs >= kPortalRetryMs) {
+      g_lastPortalRetryMs = millis();
+      if (WiFi.softAPgetStationNum() == 0) WiFi.begin(g_config.wifiSsid, g_config.wifiPassword);
+    }
   }
 
   const bool mqttUp = g_mqttUp;
@@ -223,7 +306,7 @@ bool nextTurnoutMessage(TurnoutMessage* message) {
   return g_queue != nullptr && xQueueReceive(g_queue, message, 0) == pdTRUE;
 }
 
-const char* turnoutName(uint8_t channel) { return kTurnoutNames[channel - 1]; }
+const char* turnoutName(uint8_t channel) { return names()[channel - 1]; }
 
 void noteOutcome(Outcome outcome) {
   switch (outcome) {
@@ -234,25 +317,28 @@ void noteOutcome(Outcome outcome) {
 }
 
 void printStatus() {
-  if (!g_enabled) {
-    Serial.printf("net: off: %s\n", g_disabledReason != nullptr ? g_disabledReason : "not started");
+  Serial.printf("settings: %s\n", sourceName(g_source));
+  if (!g_haveConfig) {
+    Serial.println("net: off (no usable settings; see portal)");
+    portal::printStatus();
     return;
   }
   const bool wifiUp = WiFi.status() == WL_CONNECTED;
-  Serial.printf("Wi-Fi: %s \"%s\"", wifiUp ? "up" : "down", kWifiSsid);
+  Serial.printf("Wi-Fi: %s \"%s\"", wifiUp ? "up" : "down", g_config.wifiSsid);
   if (wifiUp) {
     Serial.printf(", IP %s, RSSI %d dBm", WiFi.localIP().toString().c_str(), static_cast<int>(WiFi.RSSI()));
   }
   Serial.println();
-  Serial.printf("MQTT: %s, %s:%u as \"%s\"%s, %lu connects\n", g_mqttUp ? "up" : "down", kMqttHost, kMqttPort,
-                kNodeName, kMqttUser[0] != '\0' ? " with login" : "", static_cast<unsigned long>(g_connects));
+  Serial.printf("MQTT: %s, %s:%u as \"%s\"%s, %lu connects\n", g_mqttUp ? "up" : "down", g_config.mqttHost,
+                g_config.mqttPort, g_config.nodeName, g_config.mqttUser[0] != '\0' ? " with login" : "",
+                static_cast<unsigned long>(g_connects));
   Serial.printf("status topic: %s\n", g_statusTopic);
-  Serial.printf("JMRI channel: \"%s\"\n", kJmriChannel);
+  Serial.printf("JMRI channel: \"%s\"\n", g_config.jmriChannel);
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
-    if (kTurnoutNames[i][0] == '\0') {
+    if (names()[i][0] == '\0') {
       Serial.printf("%2u  (unused)\n", i + 1);
-    } else if (tc::turnoutTopic(kJmriChannel, kTurnoutNames[i], topic, sizeof(topic))) {
+    } else if (tc::turnoutTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
       Serial.printf("%2u  %s\n", i + 1, topic);
     }
   }
@@ -260,6 +346,7 @@ void printStatus() {
                 static_cast<unsigned long>(g_received), static_cast<unsigned long>(g_applied),
                 static_cast<unsigned long>(g_unchanged), static_cast<unsigned long>(g_ignored),
                 static_cast<unsigned long>(g_dropped), static_cast<unsigned long>(g_fragmented));
+  portal::printStatus();
 }
 
 }  // namespace net
