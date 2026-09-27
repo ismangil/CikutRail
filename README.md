@@ -7,7 +7,7 @@ Model railway control hardware and software, built around
 
 | Folder | What it is | Status |
 |---|---|---|
-| [`turnout-controller/`](turnout-controller/) | MQTT turnout node on an M5Stack Stamp-S3Bat, driving up to 11 IoTT turnout boards; emulates JMRI Raspberry Pi GPIO turnouts | Planning |
+| [`turnout-controller/`](turnout-controller/) | MQTT turnout node on an M5Stack Stamp-S3Bat, driving up to 11 turnouts through IoTT GreenHat coil drivers; emulates JMRI Raspberry Pi GPIO turnouts | Planning |
 
 Each project is self-contained: it builds, tests and documents itself from
 its own folder.
