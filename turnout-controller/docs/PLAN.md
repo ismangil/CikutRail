@@ -61,8 +61,7 @@ in [WIRING.md](WIRING.md)):
   click by default. A reset makes THROWN turnouts pulse, so the config page
   can disable single-click reset (double-click power off stays).
   (Phase 1 bench: a single click on USB power did not reset the ESP32; see
-  PHASE1_BENCH.md, test 9. Whether this option is needed depends on the
-  battery result.)
+  PHASE1_BENCH.md, test 9.)
 
 ## Hardware summary
 
@@ -154,8 +153,7 @@ Details in WIRING.md, "Power sequencing through 5VOUT".
 
 - `cikutrail/<node>/status`: `online` / `offline`, retained.
 - `cikutrail/<node>/info`: retained JSON, refreshed periodically:
-  firmware version, IP, RSSI, uptime, battery voltage, charging, 5 V
-  input present.
+  firmware version, IP, RSSI, uptime, 5 V input present.
 - LED: blue blink = setup portal, yellow = connecting, green = subscribed,
   red blink = error.
 
@@ -216,7 +214,7 @@ Each phase is tested on real hardware before the next starts.
    across restarts, JMRI-offline policy, stagger, minimum interval,
    single-click reset option.
 4. **Setup and config.** Captive portal, config page, mDNS, OTA.
-5. **Health.** Battery/charging info, LED states, long press, PM1 watchdog.
+5. **Health.** LED states, long press, PM1 watchdog.
 6. **Optional.** MONITORING feedback topic; per-pin sensor mode
    (emulating JMRI Pi sensors) if inputs are needed later.
 

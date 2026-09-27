@@ -7,7 +7,7 @@ pins from USB serial commands and reports what happens to the pins and
 
 ## Setup
 
-- Stamp-S3Bat on USB-C (battery optional).
+- Stamp-S3Bat on USB-C. No battery: the layout doesn't use one.
 - One GreenHat, J6 open, coil supply connected as on the layout.
 - Wiring (see [WIRING.md](WIRING.md)):
 
@@ -106,7 +106,7 @@ Record the results in the table at the end.
    single-click reset is enabled and whether the PM1 saw a press since
    the last read; `boot` shows whether the ESP32 actually reset (a new
    `pins driven` time).
-10. **Power cycle.** Unplug USB-C (and the battery, if fitted) for a few
+10. **Power cycle.** Unplug USB-C for a few
     seconds, reconnect. Expect a cold start with all pins LOW, and no
     turnout movement: the pins are LOW before 5VOUT comes on.
 11. **G3.** Channel 3 is on G3, a strapping pin. In tests 6–9 it should
@@ -115,11 +115,6 @@ Record the results in the table at the end.
     trigger on G1 rising during `reset soft`; measure how long it stays
     HIGH before the firmware drives it LOW. The boot report's `pins driven
     ... us after app start` gives the firmware's share.
-
-13. **Battery ride-through.** With the battery fitted and USB-C connected,
-    unplug USB-C for 10 s without touching the button, reconnect, and
-    type `boot`. An unchanged boot report means the battery kept the node
-    running; a new `power-on` report means it didn't.
 
 ## Results
 
@@ -137,7 +132,6 @@ Record the results in the table at the end.
 | 10 Power cycle | | |
 | 11 G3 same as G1 | | |
 | 12 Float time | | |
-| 13 Battery ride-through | | |
 
 Paste the filled table (and any odd boot reports) back into the
 conversation; the answers decide the startup and restart design in
@@ -158,11 +152,11 @@ USB-C with a battery fitted (4.2 V), Pi with a Pi-SPROG (port named by id).
 | 6 Latch on: soft / panic / wdt | Skipped | |
 | 7 Latch off: soft / panic / wdt | Not run | |
 | 8 5VOUT off first | Not run | |
-| 9 Button reset | No reset | On USB power, 3 single clicks: `pm1 btn` showed single-click reset enabled and the press registered, but the ESP32 didn't reset. No movement. Not tested on battery (see 13). |
+| 9 Button reset | No reset | On USB power, 3 single clicks: `pm1 btn` showed single-click reset enabled and the press registered, but the ESP32 didn't reset. No movement. |
 | 10 Power cycle | Pass | No movement, 3 times. |
 | 11 G3 same as G1 | Not run | |
 | 12 Float time | Not run | |
-| 13 Battery ride-through | **Fail** | Unplugging USB-C for 10 s gave a new power-on boot with the battery at 4.2 V. Cause not known yet (PM1 may need a button press to run from battery, or a battery connection fault). |
+| Battery ride-through | Dropped | With a cell fitted (4.2 V), unplugging USB-C cut the node's power. The layout doesn't use a battery, so this wasn't pursued. |
 
 Other findings:
 

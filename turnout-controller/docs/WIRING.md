@@ -60,7 +60,7 @@ the node and all GreenHats share ground.
 
 **Why 5VOUT:** it is a boost converter on the S3Bat, switched on and off by
 the PM1 power chip, so the firmware controls the GreenHats' logic power.
-It also runs from the battery. The GreenHats' 5 V draw is small: the
+The GreenHats' 5 V draw is small: the
 XOR gate plus the input pull-ups, about 0.5 mA per LOW input, so roughly
 10 mA for 11 channels. (M5Stack's 5VOUT current rating couldn't be
 checked from here, but a boost like this delivers far more than that.)
@@ -174,7 +174,7 @@ would be pulled towards 5 V, beyond what the ESP32 pins tolerate.
 | Pad | Use |
 |---|---|
 | **5VIN** | Feed the node from the layout's 5 V supply here (or use USB-C). |
-| **BAT** | 3.7 V Li-ion cell; meant to ride through supply dips and keep outputs driven. **Not yet working:** on the phase 1 bench the node lost power when USB-C was unplugged, with the cell at 4.2 V (PHASE1_BENCH.md, test 13). |
+| **BAT** | Not used: the node runs from 5VIN or USB-C only, with no battery ride-through. |
 | **3V3** | ESP32 regulator output, 600 mA max, shared with the ESP. **Do not** power the GreenHats from it. |
 | **5VOUT** | Boost output switched by the PM1: GreenHat logic 5 V (header pin 2). |
 | **GND** | Common ground with all GreenHats. |
@@ -192,6 +192,6 @@ the ESP32's Wi-Fi peaks.
   makes THROWN turnouts pulse (see above); the config page can disable it.
   **On the phase 1 bench, a single click on USB power did not reset the
   ESP32**, although the PM1 reported single-click reset enabled and saw
-  the press (PHASE1_BENCH.md, test 9). Not yet tried on battery.
-- Battery voltage, 5 V input voltage, charging status
+  the press (PHASE1_BENCH.md, test 9).
+- 5 V input voltage (the PM1's battery and charging features are unused)
 - WAKE pad (PM1 G4); not used
