@@ -50,7 +50,7 @@ Every node publishes under its own node name, outside JMRI's topic tree:
 | Topic | Retained | Payload |
 |---|---|---|
 | `cikutrail/<node>/status` | yes | `online`, or `offline` (set as the MQTT last-will message) |
-| `cikutrail/<node>/info` | yes | JSON: firmware version, IP, Wi-Fi RSSI, uptime, battery voltage, charging state |
+| `cikutrail/<node>/info` | yes | JSON: firmware version, IP, Wi-Fi RSSI, uptime, plus device extras (turnout node: 5 V input; battery voltage and charging state where a device has a battery) |
 
 ## Future devices
 

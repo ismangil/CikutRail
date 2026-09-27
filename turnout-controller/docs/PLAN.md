@@ -96,7 +96,7 @@ lib/turnout_core/   hardware-free logic, built for the board and for PC tests
   turnout_state.h   CLOSED = HIGH, THROWN = LOW                       (phase 1)
   command.*         serial console commands                           (phase 1)
   level_snapshot.*  pin levels kept in RTC memory across resets       (phase 1)
-  jmri_protocol.*   topic/payload decoding
+  jmri_protocol.*   topic/payload decoding                            (phase 2)
   config.*          settings validation
 src/
   main.cpp          startup order, main loop, console                 (phase 1)
@@ -104,10 +104,11 @@ src/
                     minimum interval                                  (phase 1)
   power.*           PM1: 5VOUT, voltages; later LED, button, watchdog (phase 1)
   settings.*        settings in flash (Preferences/NVS)
-  mqtt_link.*       ESP-IDF esp-mqtt client: QoS 1/2, auto-reconnect, last will
+  net.*             Wi-Fi + ESP-IDF esp-mqtt client: QoS 2, auto-reconnect,
+                    last will; settings compiled in from local_settings.h (phase 2)
   portal.*          captive portal, web config, OTA upload
 test/               PC unit tests for lib/turnout_core
-tools/mqtt_exercise.py   drives a broker the way JMRI does
+tools/mqtt_exercise.py   drives a broker the way JMRI does              (phase 2)
 ```
 
 The PM1 is driven with M5Stack's lightweight
@@ -215,7 +216,8 @@ Each phase is tested on real hardware before the next starts.
    skipped and stay open.
 2. **MQTT.** Wi-Fi + broker with a temporary compiled-in settings file.
    JMRI turnouts in DIRECT mode, checked against a JMRI panel.
-   `tools/mqtt_exercise.py` for repeatable tests.
+   `tools/mqtt_exercise.py` for repeatable tests. Procedure in
+   [PHASE2_BENCH.md](PHASE2_BENCH.md).
 3. **Startup behaviour.** Saved state, restore/low policy, pin latching
    across restarts, JMRI-offline policy, stagger, minimum interval,
    single-click reset option.

@@ -6,13 +6,16 @@ It drives up to 11 turnouts through IoTT GreenHat Coil Driver boards from
 GPIO G1–G11, and behaves like JMRI's Raspberry Pi GPIO turnouts: `CLOSED`
 drives the pin HIGH, `THROWN` drives it LOW, as a steady level.
 
-**Status:** phase 1, bench firmware. The pins are driven from USB serial
-commands; there's no Wi-Fi or MQTT yet.
+**Status:** phase 2. The node takes JMRI MQTT turnout commands over Wi-Fi,
+with settings compiled in from `src/local_settings.h`; the phase 1 USB
+console still works alongside.
 
 - [Plan](docs/PLAN.md): design, behaviour, build phases
 - [Wiring](docs/WIRING.md): pin map, GreenHat hookup and behaviour, power
-- [Phase 1 bench test](docs/PHASE1_BENCH.md): what to test on the bench,
-  and the results table
+- [Phase 1 bench test](docs/PHASE1_BENCH.md): pins, pulses, 5VOUT, and
+  the run 1 results
+- [Phase 2 bench test](docs/PHASE2_BENCH.md): broker, settings, JMRI
+  connection, MQTT tests
 - Layout-wide topic rules: [../docs/MQTT_CONVENTIONS.md](../docs/MQTT_CONVENTIONS.md)
 
 ## Build
@@ -35,8 +38,9 @@ turnout-controller/
 ├── platformio.ini
 ├── lib/turnout_core/   hardware-free logic (channels, commands, level
 │                       snapshot); built for the board and for PC tests
-├── src/                firmware: pin driver, PM1 power chip, console
+├── src/                firmware: pin driver, PM1 power chip, Wi-Fi/MQTT,
+│                       console
 ├── test/               unit tests for lib/turnout_core
-├── tools/              test helpers (MQTT exerciser, phase 2)
+├── tools/              mqtt_exercise.py: publishes like JMRI, for tests
 └── docs/
 ```
