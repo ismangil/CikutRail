@@ -79,8 +79,9 @@ Details in [WIRING.md](WIRING.md).
   stage at 5 V. Direct 3.3 V drive works (as on the Pi) but the gate's
   worst-case threshold isn't guaranteed below 3.3 V. An optional
   open-collector transistor stage per channel removes that doubt.
-  Header pin 2 is the GreenHat's 5 V logic rail: unconnected if its J6
-  bridges are fitted, fed from the layout's 5 V if not.
+  Header pin 2 is the GreenHat's 5 V logic rail. This layout's GreenHats
+  have J6 open, so pin 2 is fed from the node's **5VOUT** (PM1-switched
+  boost), which lets the firmware sequence GreenHat logic power.
 
 ## Firmware design
 
@@ -96,7 +97,7 @@ src/
   mqtt_link.*       ESP-IDF esp-mqtt client: QoS 1/2, auto-reconnect, last will
   jmri_protocol.*   topic/payload decoding; pure logic, unit-tested on PC
   portal.*          captive portal, web config, OTA upload
-  health.*          M5Unified: battery, charging, LED, button, PM1 watchdog
+  health.*          M5Unified: battery, charging, LED, button, 5VOUT, PM1 watchdog
 test/               PC unit tests (protocol, config validation)
 tools/mqtt_exercise.py   drives a broker the way JMRI does
 ```
@@ -110,11 +111,17 @@ tools/mqtt_exercise.py   drives a broker the way JMRI does
    software resets and OTA reboots. Phase 1 measures the float time and
    which reset types the latch survives (a PM1 button reset or power
    cycle is expected to clear it).
-3. Start Wi-Fi (modem sleep off for low latency).
-4. Connect MQTT with last will `cikutrail/<node>/status` = `offline`;
+3. Turn on 5VOUT (GreenHat logic power, PM1 G1) only after the pins are
+   at their levels, so THROWN turnouts don't pulse at startup.
+4. Start Wi-Fi (modem sleep off for low latency).
+5. Connect MQTT with last will `cikutrail/<node>/status` = `offline`;
    publish `online`.
-5. Subscribe to each turnout's command topic. Retained messages set each
+6. Subscribe to each turnout's command topic. Retained messages set each
    turnout to its last commanded state.
+
+Planned restarts (OTA, config save, reboot from the web page) first turn
+5VOUT off, so no turnout moves while the pins float. Details and
+reasoning in WIRING.md, "Power sequencing through 5VOUT".
 
 ### Command handling
 
@@ -180,7 +187,11 @@ Each phase is tested on real hardware before the next starts.
      Schmitt XOR reads the 3.3 V HIGH);
    - how long pins float at power-up and reset, and which resets the pin
      latch survives (software restart, watchdog, PM1 button reset);
-   - G3 behaves like the other pins through a reset.
+   - G3 behaves like the other pins through a reset;
+   - 5VOUT feeds the GreenHats' logic, and whether the PM1 keeps 5VOUT on
+     through each kind of ESP32 reset;
+   - the 5VOUT power sequence: no THROWN turnout pulses at cold start or
+     on a planned restart.
 2. **MQTT.** Wi-Fi + broker with a temporary compiled-in settings file.
    JMRI turnouts in DIRECT mode, checked against a JMRI panel.
    `tools/mqtt_exercise.py` for repeatable tests.
@@ -193,10 +204,6 @@ Each phase is tested on real hardware before the next starts.
    (emulating JMRI Pi sensors) if inputs are needed later.
 
 ## Open items
-
-- GreenHat J6: bridged (onboard 5 V regulator) or open (5 V fed on header
-  pin 2, as from the Pi)? This decides whether the node's wiring carries
-  5 V to the headers.
 
 - Confirm the JMRI channel in use and pick each node's number block
   (MQTT_CONVENTIONS.md).

@@ -43,7 +43,7 @@ fits.
 | Header pin | Signal | Connect to |
 |---|---|---|
 | 1 | GND | node **GND** |
-| 2 | +5 V (GreenHat logic rail) | depends on J6, see below. **Never** the node's 3V3 or a GPIO. |
+| 2 | +5 V (GreenHat logic rail) | node **5VOUT** (with J6 open, see below). **Never** the node's 3V3 or a GPIO. |
 | 3 | IN | node G*n* |
 
 Connect GND on every header you use (or at least once per GreenHat), so
@@ -53,14 +53,24 @@ the node and all GreenHats share ground.
 
 - **J6 bridged** (standalone): the GreenHat's onboard regulator makes its
   5 V logic supply from the coil supply. Leave pin 2 unconnected.
-- **J6 open**: the GreenHat expects its 5 V logic supply on pin 2 (from a
-  PCA9685 board, or from the Pi's 5 V in your current setup). Feed pin 2
-  from the layout's 5 V supply, the same one that feeds the node's
-  **5VIN**. The board's 5 V draw is small (logic chips only).
+- **J6 open** (this layout): the GreenHat takes its 5 V logic supply
+  from pin 2, as it did from the Pi. Feed it from the node's **5VOUT**
+  pad. The three headers on one GreenHat share the same 5 V rail, so one
+  pin 2 per GreenHat is enough.
+
+**Why 5VOUT:** it is a boost converter on the S3Bat, switched on and off by
+the PM1 power chip, so the firmware controls the GreenHats' logic power.
+It also runs from the battery. The GreenHats' 5 V draw is small: the
+XOR gate plus the input pull-ups, about 0.5 mA per LOW input, so roughly
+10 mA for 11 channels. (M5Stack's 5VOUT current rating couldn't be
+checked from here, but a boost like this delivers far more than that.)
+
+The alternative is to feed pin 2 straight from the layout 5 V supply that
+feeds the node's **5VIN** pad. That works like the Pi, but the firmware
+can't switch it. The 5VIN pad carries 5 V only when that supply is
+connected, not when the node runs from USB-C.
 
 ## How the GreenHat reacts to the pin
-
-From the GreenHat schematic:
 
 From the GreenHat schematic and IoTT's
 [Video #78](https://www.youtube.com/watch?v=QB0OnHWNqEE):
@@ -86,18 +96,34 @@ From the GreenHat schematic and IoTT's
 
 ### Consequences
 
-1. **Idle level is HIGH.** When the node isn't driving a pin (power-up,
-   reset, or node unpowered), the GreenHat pull-up takes the line HIGH
-   (CLOSED).
-   - Turnouts that are CLOSED ride through a node reset with no pulse.
+A useful rule falls out of the circuit: the delayed side is always a late
+(or, when unpowered, LOW) copy of the input. So **a channel can only pulse
+towards the level on its input**. A turnout moves the wrong way only if
+its input takes the wrong level.
+
+1. **Idle level is HIGH while the GreenHat logic is powered.** When the
+   node isn't driving a pin (reset, or node unpowered) and the GreenHat
+   has 5 V, the pull-up takes the line HIGH (CLOSED).
+   - Turnouts that are CLOSED ride through a node reset with no movement.
    - Turnouts that are THROWN get a CLOSED pulse when the node resets,
      then a THROWN pulse when the firmware restores their level.
    - Do **not** add a pull-down to fight this: 10 kΩ against the 10.2 kΩ
      pull-up gives ~2.5 V, an undefined level.
-2. **The GreenHat fires on its own power-up.** Its delay capacitor starts
-   empty while the input is pulled HIGH, so each channel gives a CLOSED
-   pulse when the GreenHat is powered. The node then puts THROWN turnouts
-   back. This is the GreenHat's own behaviour; it happened on the Pi too.
+   - With the GreenHat logic unpowered (5VOUT off), there is no pull-up
+     and no delayed side, so a floating input causes no pulse at all.
+2. **Power sequencing through 5VOUT.** Because the node switches the
+   GreenHats' 5 V:
+   - **Cold start:** the node drives its pins to the restored levels
+     first, then turns 5VOUT on. THROWN turnouts don't pulse; CLOSED
+     turnouts get one CLOSED pulse and don't move.
+   - **Planned restarts** (firmware update, config save): the node turns
+     5VOUT off, restarts, restores its pins, then turns 5VOUT on again.
+     No turnout moves.
+   - **Unplanned resets** (crash, watchdog, PM1 button reset) happen
+     with 5VOUT still on, so item 1 applies. Phase 1 checks whether the
+     PM1 keeps 5VOUT on through each kind of ESP32 reset.
+   - With the Pi's always-on 5 V, every channel pulsed CLOSED at GreenHat
+     power-up and THROWN turnouts were then put back.
 3. **3.3 V into 5 V logic.** The XOR gate (U3) must be the
    Schmitt-trigger type: its hysteresis is what makes the delayed side
    switch cleanly once. (The BOM lists a plain 74HC86 because JLCPCB
@@ -116,8 +142,9 @@ From the GreenHat schematic and IoTT's
    carry that.
 5. **Pull-up into an idle pin.** An undriven node pin is pulled towards
    5 V through 10.2 kΩ and clamped by the ESP32's protection diode: about
-   0.1–0.4 mA per pin, the same as on the Pi. Keep the node powered
-   whenever the GreenHats are (the S3Bat battery helps here).
+   0.1–0.4 mA per pin, the same as on the Pi. With the GreenHats' 5 V
+   coming from the node's own 5VOUT, this only happens during a node
+   reset.
 
 ## Optional open-collector stage
 
@@ -146,11 +173,11 @@ would be pulled towards 5 V, beyond what the ESP32 pins tolerate.
 | **5VIN** | Feed the node from the layout's 5 V supply here (or use USB-C). |
 | **BAT** | 3.7 V Li-ion cell; rides through supply dips and keeps outputs driven. |
 | **3V3** | ESP32 regulator output, 600 mA max, shared with the ESP. **Do not** power the GreenHats from it. |
-| **5VOUT** | Boost output switched by the PM1; not used by this project. |
+| **5VOUT** | Boost output switched by the PM1: GreenHat logic 5 V (header pin 2). |
 | **GND** | Common ground with all GreenHats. |
 
-GreenHats keep their coil supply and J6 setting as they were with the Pi;
-if J6 is open, feed header pin 2 from the layout's 5 V (see above). Don't
+GreenHats keep their coil supply and their J6 setting (open) as they
+were with the Pi; header pin 2 now comes from the node's 5VOUT. Don't
 power the node from a GreenHat's onboard regulator: it isn't sized for
 the ESP32's Wi-Fi peaks.
 
