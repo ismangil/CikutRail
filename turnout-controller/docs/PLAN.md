@@ -3,8 +3,8 @@
 ## Goal
 
 A JMRI MQTT turnout node on an M5Stack Stamp-S3Bat, controlling up to 11
-turnouts over Wi-Fi through IoTT GreenHat Coil Driver boards (3 channels
-each, so 4 boards). The GreenHats already work when wired to a Raspberry
+turnouts over Wi-Fi through IoTT GreenHat Coil Driver boards, sold as the
+3-Channel Turnout Pulse Driver (3 channels each, so 4 boards). The GreenHats already work when wired to a Raspberry
 Pi running JMRI's GPIO turnouts, so the node reproduces that behaviour pin
 for pin, only with MQTT in between.
 

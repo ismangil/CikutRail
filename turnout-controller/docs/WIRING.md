@@ -3,7 +3,9 @@
 Node: M5Stack Stamp-S3Bat. Pin names follow the M5Stack pinout (`G<n>` =
 ESP32-S3 GPIO n).
 
-Turnout boards: IoTT **GreenHat Coil Driver** rev 1.0
+Turnout boards: IoTT **GreenHat Coil Driver** rev 1.0, sold as the
+[3-Channel Turnout Pulse Driver](https://www.tindie.com/products/tanner87661/3-channel-turnout-pulse-driver/)
+and shown in IoTT's [Video #78](https://www.youtube.com/watch?v=QB0OnHWNqEE)
 ([design files](https://github.com/tanner87661/IoTTStick/tree/master/Hat%20Devices/GreenHat%20Power%20Extension)).
 Each GreenHat has 3 channels, so 11 turnouts need 4 GreenHats (one channel
 spare).
