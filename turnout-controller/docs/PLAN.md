@@ -57,11 +57,10 @@ in [WIRING.md](WIRING.md)):
 - **Output stage:** `direct` (default, pin level as on the Pi) or
   `open-collector` (pin inverted, for a transistor stage between the node
   and the GreenHat; see WIRING.md).
-- **Button single-click reset:** the PM1 resets the ESP32 on a single
-  click by default. A reset makes THROWN turnouts pulse, so the config page
-  can disable single-click reset (double-click power off stays).
-  (Phase 1 bench: a single click on USB power did not reset the ESP32; see
-  PHASE1_BENCH.md, test 9.)
+- **Button single-click reset:** dropped. The PM1's single-click reset
+  was meant to be switchable because a reset makes THROWN turnouts pulse,
+  but on the phase 1 bench a single click didn't reset the ESP32 at all
+  (PHASE1_BENCH.md, test 9). Revisit if a PM1 firmware changes that.
 
 ## Hardware summary
 
@@ -75,8 +74,8 @@ Details in [WIRING.md](WIRING.md).
   0x6E) owns the RGB LED, the user button, battery and 5 V sensing,
   charging and the wake pin. None of these use an ESP GPIO.
 - The button goes to the PM1: single-click = reset and double-click =
-  power off are its defaults. The firmware reads a long press through the
-  PM1, and can disable single-click reset (see above).
+  power off are its documented defaults (a single click didn't reset the
+  node on the bench). The firmware reads a long press through the PM1.
 - GreenHat inputs: 10.2 kΩ pull-up to 5 V, Schmitt-trigger XOR delay
   stage at 5 V. Direct 3.3 V drive works (as on the Pi) but the gate's
   worst-case threshold isn't guaranteed below 3.3 V. An optional
@@ -94,6 +93,8 @@ PlatformIO + Arduino-ESP32, build target `[env:stamp-s3bat]`, plus
 lib/turnout_core/   hardware-free logic, built for the board and for PC tests
   channels.*        channel ↔ GPIO table, forbidden-pin checks        (phase 1)
   turnout_state.h   CLOSED = HIGH, THROWN = LOW                       (phase 1)
+  behaviour.*       startup/offline policies, stagger + interval
+                    scheduler                                         (phase 3)
   command.*         serial console commands                           (phase 1)
   level_snapshot.*  pin levels kept in RTC memory across resets       (phase 1)
   jmri_protocol.*   topic/payload decoding                            (phase 2)
@@ -120,11 +121,13 @@ M5Stack products, and some of those pins are turnout outputs here.
 ### Startup order
 
 1. Load config from flash.
-2. Drive every enabled pin to its startup level (restore or low), as
-   early in boot as possible to shorten the time the pins float (from
-   Arduino's `initVariant()`, before `setup()`), and
-   latch it (`gpio_hold_en`) to try to keep outputs steady across
-   software resets and OTA reboots. The float time and which reset types
+2. Drive every pin as early as possible, from a C++ constructor before
+   `app_main()`: to the levels in RTC memory after a reset, or all LOW
+   after a power cut (5VOUT is off then, so nothing can pulse). Then, from
+   `initVariant()` once flash is readable, apply the startup policy
+   (restore: RTC levels after a reset, flash levels after a power cut;
+   low: all LOW). Latch every pin (`gpio_hold_en`), which may keep outputs
+   steady across software resets. The float time and which reset types
    the latch survives are still unmeasured (the phase 1 reset tests were
    skipped). The pins are driven about 100 ms after app start in the
    phase 1 firmware and about 210 ms in phase 2, on every power-on (the
@@ -139,10 +142,11 @@ M5Stack products, and some of those pins are turnout outputs here.
 6. Subscribe to each turnout's command topic. Retained messages set each
    turnout to its last commanded state.
 
-Planned restarts (OTA, config save, reboot from the web page) rely on the
-pin latch holding every pin through the restart. Whether turning 5VOUT
-off first helps as well is a phase 1 test: the driven pins partly power
-the GreenHat's 5 V rail through its pull-ups, so it isn't certain.
+Restarts are treated as unsafe: whether the pin latch holds through a
+reset was never measured (the phase 1 reset tests were skipped), and a
+reset can make THROWN turnouts pulse. So the firmware never restarts
+itself: settings apply in place (the setup page, `config`). OTA in
+phase 4 needs a restart; how to make that one safe is decided there.
 Details in WIRING.md, "Power sequencing through 5VOUT".
 
 ### Command handling
@@ -151,7 +155,8 @@ Details in WIRING.md, "Power sequencing through 5VOUT".
   nothing.
 - Stagger and minimum interval (if set) are applied here; a held-back
   change keeps only the newest command.
-- Each change is saved to flash (write only on change, to limit wear).
+- The levels are saved to flash 2 s after the last change, so a burst of
+  changes costs one write.
 - Optional feedback: publish the new state on
   `<channel>track/turnout/<name>/state`, never on the command topic.
 
@@ -194,7 +199,7 @@ password.
 | JMRI | channel (empty; older JMRI uses `/trains/`) |
 | Node | node name, admin password |
 | Turnouts (G1–G11) | enabled, JMRI name (`101`–`111` → `MT101`–`MT111`), test button |
-| Behaviour | output stage (`direct` / `open-collector`), startup level (`restore` / `low`), JMRI offline (`hold` / `low`), stagger ms (0), minimum interval per turnout ms (0), button single-click reset (on), feedback topic (off) |
+| Behaviour | output stage (`direct` / `open-collector`), startup level (`restore` / `low`), JMRI offline (`hold` / `low`), stagger ms (0), minimum interval per turnout ms (0), feedback topic (off) |
 | Maintenance | OTA firmware upload, reboot, factory reset |
 
 Implementation: one small server on Arduino `WebServer` + `DNSServer`,
@@ -229,9 +234,10 @@ Each phase is tested on real hardware before the next starts.
    compiled in. JMRI turnouts in DIRECT mode, checked against a JMRI panel.
    `tools/mqtt_exercise.py` for repeatable tests. Procedure in
    [PHASE2_BENCH.md](PHASE2_BENCH.md).
-3. **Startup behaviour.** Saved state, restore/low policy, pin latching
-   across restarts, JMRI-offline policy, stagger, minimum interval,
-   single-click reset option.
+3. **Startup behaviour.** Saved state, restore/low policy, earlier pin
+   drive, JMRI-offline policy, stagger, minimum interval, set from the
+   console (`config`) and saved in flash. No firmware-initiated restarts.
+   Procedure in [PHASE3_BENCH.md](PHASE3_BENCH.md).
 4. **Setup and config.** Captive portal, config page, mDNS, OTA.
 5. **Health.** LED states, long press, PM1 watchdog.
 6. **Optional.** MONITORING feedback topic; per-pin sensor mode
