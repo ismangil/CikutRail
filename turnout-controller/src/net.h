@@ -45,6 +45,11 @@ bool mqttUp();
 void onPortalOpened(bool wifiFailed);
 void onPortalClosed();
 
+// Subscribes to the turnout topics again, so the broker re-sends every
+// retained command (MQTT 3.1.1 re-sends retained messages when a
+// subscription is replaced). Done from loop() once MQTT is up.
+void rereadRetained();
+
 // Takes the next turnout or JMRI state message received from the broker.
 bool nextMessage(Message* message);
 

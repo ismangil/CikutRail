@@ -46,6 +46,7 @@ uint32_t g_lastPortalRetryMs = 0;
 // Written by the esp-mqtt task, read by the main loop.
 std::atomic<bool> g_mqttUp(false);
 std::atomic<bool> g_infoDue(false);
+bool g_rereadDue = false;  // main loop only
 std::atomic<uint32_t> g_connects(0);
 std::atomic<uint32_t> g_received(0);
 std::atomic<uint32_t> g_dropped(0);
@@ -75,8 +76,7 @@ const char* sourceName(settings::Source source) {
   return "";
 }
 
-void subscribeAll(esp_mqtt_client_handle_t client) {
-  esp_mqtt_client_subscribe(client, g_jmriStateTopic, 1);
+void subscribeTurnouts(esp_mqtt_client_handle_t client) {
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
     if (names()[i][0] == '\0') continue;
@@ -84,6 +84,11 @@ void subscribeAll(esp_mqtt_client_handle_t client) {
       esp_mqtt_client_subscribe(client, topic, kCommandQos);
     }
   }
+}
+
+void subscribeAll(esp_mqtt_client_handle_t client) {
+  esp_mqtt_client_subscribe(client, g_jmriStateTopic, 1);
+  subscribeTurnouts(client);
 }
 
 void onMqttEvent(void*, esp_event_base_t, int32_t id, void* data) {
@@ -316,7 +321,13 @@ void loop() {
     }
   }
   if (mqttUp && (g_infoDue.exchange(false) || millis() - g_lastInfoMs >= kInfoIntervalMs)) publishInfo();
+  if (mqttUp && g_rereadDue) {
+    g_rereadDue = false;
+    subscribeTurnouts(g_client);
+  }
 }
+
+void rereadRetained() { g_rereadDue = true; }
 
 bool nextMessage(Message* message) {
   return g_queue != nullptr && xQueueReceive(g_queue, message, 0) == pdTRUE;

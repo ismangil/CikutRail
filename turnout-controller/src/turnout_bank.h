@@ -25,7 +25,7 @@ struct BootReport {
   bool restored;             // RTC snapshot valid (a reset, not a power cut)
   uint8_t plannedReset;      // console reset that led to this boot: ResetKind + 1, 0 = none
   uint16_t padLevelsAtBoot;  // pads as read before driving (only meaningful for held pads)
-  int64_t drivenAtUs;        // esp_timer time (since app start) when the pins were first driven
+  int64_t drivenAtUs;        // esp_timer time of the first drive (from chip reset, it appears)
   int64_t startupAtUs;       // ... when the startup policy was applied
   LevelSource source;
   uint16_t changedAtStartup; // channels the startup policy changed after the first drive

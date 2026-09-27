@@ -20,7 +20,7 @@ namespace {
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.3.0-phase3";
+const char* const kFirmwareVersion = "0.3.1-phase3";
 // Levels go to flash this long after the last change, so a burst of
 // changes costs one write.
 const uint32_t kSaveLevelsAfterMs = 2000;
@@ -47,6 +47,8 @@ bool g_haveSavedLevels = false;
 uint16_t g_savedLevels = 0;     // as last written to flash
 uint16_t g_lastLevels = 0;      // as last seen, to time the flash write
 uint32_t g_levelsChangedMs = 0;
+bool g_jmriOffline = false;     // a live OFFLINE seen, JMRI not back yet
+uint32_t g_appliedCount = 0;    // changes made by the scheduler
 
 void configure(const tc::Command& command);  // console "config", below
 
@@ -134,9 +136,13 @@ void printBootReport() {
                 static_cast<unsigned long>(boot.romResetReason));
   Serial.printf("console reset before this boot: %s\n", resetKindName(boot.plannedReset));
   printLevels("pads read at boot, before driving:", boot.padLevelsAtBoot);
-  Serial.printf("pins first driven %lld us after app start, %s\n", static_cast<long long>(boot.drivenAtUs),
+  // esp_timer appears to count from chip reset (these times grow with the
+  // firmware image size), so they include the bootloader, which checks the
+  // whole image before starting it.
+  Serial.printf("pins first driven %lld us after chip reset, %s\n", static_cast<long long>(boot.drivenAtUs),
                 boot.restored ? "to the levels in RTC memory" : "all LOW (power cut: RTC memory empty)");
-  Serial.printf("startup %s, at %lld us", levelSourceName(boot.source), static_cast<long long>(boot.startupAtUs));
+  Serial.printf("startup %s, at %lld us after reset", levelSourceName(boot.source),
+                static_cast<long long>(boot.startupAtUs));
   if (boot.changedAtStartup != 0) {
     Serial.print(", changed channels");
     for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
@@ -344,6 +350,7 @@ void runScheduler() {
   while (g_scheduler.next(millis(), current, &channel, &target)) {
     bank::setState(channel, target);
     current[channel - 1] = target;
+    ++g_appliedCount;
     stamp();
     Serial.printf("ch%u -> %s (%s)\n", channel, tc::stateName(target), net::turnoutName(channel));
     net::noteOutcome(net::Outcome::Applied);
@@ -354,6 +361,15 @@ void handleJmriState(const net::Message& message) {
   stamp();
   if (message.jmriState != tc::JmriState::Offline) {
     Serial.printf("JMRI state \"%s\"%s\n", message.text, message.retained ? " (retained)" : "");
+    // JMRI clears its OFFLINE (an empty message) when it connects again.
+    // Re-reading the retained commands puts back anything the offline
+    // policy changed, so the pins match JMRI's table again.
+    if (!message.retained && g_jmriOffline) {
+      g_jmriOffline = false;
+      stamp();
+      Serial.println("JMRI back: re-reading the retained turnout commands");
+      net::rereadRetained();
+    }
     return;
   }
   // A retained OFFLINE may be old news from before this connection.
@@ -361,6 +377,7 @@ void handleJmriState(const net::Message& message) {
     Serial.println("JMRI OFFLINE (retained): ignored");
     return;
   }
+  g_jmriOffline = true;
   if (g_behaviour.offline == tc::OfflinePolicy::Hold) {
     Serial.println("JMRI OFFLINE: holding every turnout");
     return;
@@ -397,12 +414,17 @@ void handleMessages() {
       continue;
     }
     Serial.printf("mqtt %s %s%s\n", name, tc::stateName(target), retained);
+    const bool wasPending = g_scheduler.isPending(message.channel);
+    const uint32_t appliedBefore = g_appliedCount;
     g_scheduler.request(message.channel, target);
     runScheduler();
     if (g_scheduler.isPending(message.channel)) {
       stamp();
       Serial.printf("ch%u waiting (stagger %u ms, interval %u ms)\n", message.channel, g_behaviour.staggerMs,
                     g_behaviour.minIntervalMs);
+    } else if (wasPending && g_appliedCount == appliedBefore) {
+      stamp();
+      Serial.printf("ch%u waiting change dropped: already %s\n", message.channel, tc::stateName(target));
     }
   }
 }
