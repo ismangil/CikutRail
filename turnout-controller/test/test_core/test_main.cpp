@@ -652,6 +652,70 @@ void test_config_commands() {
   TEST_ASSERT_FALSE(parseCommand("config colour red").ok);
 }
 
+
+// --- config page forms ---
+
+void test_default_turnout_names() {
+  TurnoutNames names;
+  defaultTurnoutNames(&names);
+  TEST_ASSERT_EQUAL_STRING("101", names.name[0]);
+  TEST_ASSERT_EQUAL_STRING("111", names.name[kChannelCount - 1]);
+}
+
+void test_parse_turnout_names() {
+  const char* fields[kChannelCount] = {" 201 ", "202", "", "yard-a", nullptr, "", "", "", "", "", "211"};
+  TurnoutNames names;
+  const char* error = nullptr;
+  TEST_ASSERT_TRUE_MESSAGE(parseTurnoutNames(fields, &names, &error), error);
+  TEST_ASSERT_EQUAL_STRING("201", names.name[0]);
+  TEST_ASSERT_EQUAL_STRING("", names.name[2]);
+  TEST_ASSERT_EQUAL_STRING("yard-a", names.name[3]);
+  TEST_ASSERT_EQUAL_STRING("", names.name[4]);
+
+  const char* duplicate[kChannelCount] = {"201", "201", "", "", "", "", "", "", "", "", ""};
+  TurnoutNames kept = names;
+  TEST_ASSERT_FALSE(parseTurnoutNames(duplicate, &kept, &error));
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_EQUAL_STRING("201", kept.name[0]);  // unchanged on failure
+  const char* bad[kChannelCount] = {"2 01", "", "", "", "", "", "", "", "", "", ""};
+  TEST_ASSERT_FALSE(parseTurnoutNames(bad, &kept, &error));
+  const char* longName[kChannelCount] = {"12345678901234567", "", "", "", "", "", "", "", "", "", ""};
+  TEST_ASSERT_FALSE(parseTurnoutNames(longName, &kept, &error));
+}
+
+void test_parse_behaviour_form() {
+  Behaviour b;
+  const char* error = nullptr;
+  TEST_ASSERT_TRUE_MESSAGE(parseBehaviourForm("low", "low", "250", "3000", &b, &error), error);
+  TEST_ASSERT_TRUE(b.startup == StartupLevel::Low && b.offline == OfflinePolicy::Low);
+  TEST_ASSERT_EQUAL_UINT16(250, b.staggerMs);
+  TEST_ASSERT_EQUAL_UINT16(3000, b.minIntervalMs);
+  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "0", "0", &b, &error));
+  TEST_ASSERT_TRUE(b.startup == StartupLevel::Restore && b.offline == OfflinePolicy::Hold);
+  TEST_ASSERT_EQUAL_UINT16(0, b.staggerMs);
+  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "5000", "10000", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "5001", "0", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "0", "10001", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "", "0", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "-5", "0", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("Restore", "hold", "0", "0", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", nullptr, "0", "0", &b, &error));
+  TEST_ASSERT_NOT_NULL(error);
+}
+
+void test_admin_password_rules() {
+  TEST_ASSERT_TRUE(validAdminPassword("k7mq9x2a"));
+  TEST_ASSERT_TRUE(validAdminPassword("Pass-word_1!"));
+  TEST_ASSERT_FALSE(validAdminPassword("short"));
+  TEST_ASSERT_FALSE(validAdminPassword("has space1"));
+  TEST_ASSERT_FALSE(validAdminPassword(""));
+  TEST_ASSERT_FALSE(validAdminPassword(nullptr));
+  char tooLong[kMaxAdminPasswordLength + 2];
+  memset(tooLong, 'a', sizeof(tooLong) - 1);
+  tooLong[sizeof(tooLong) - 1] = '\0';
+  TEST_ASSERT_FALSE(validAdminPassword(tooLong));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_default_channel_table_is_valid);
@@ -693,5 +757,9 @@ int main() {
   RUN_TEST(test_scheduler_survives_millis_wrap);
   RUN_TEST(test_scheduler_ignores_bad_channels);
   RUN_TEST(test_config_commands);
+  RUN_TEST(test_default_turnout_names);
+  RUN_TEST(test_parse_turnout_names);
+  RUN_TEST(test_parse_behaviour_form);
+  RUN_TEST(test_admin_password_rules);
   return UNITY_END();
 }

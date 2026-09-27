@@ -16,11 +16,51 @@ const char kNetNamespace[] = "net";
 const char kPortalNamespace[] = "portal";
 const char kBehaviourNamespace[] = "behave";
 const char kLevelsNamespace[] = "turnouts";
+const char kNamesNamespace[] = "names";
 const uint8_t kApPasswordLength = 10;
 // No 0/O, 1/l/i: easy to read off a console and type on a phone.
 const char kApPasswordAlphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
 
 char g_apPassword[kApPasswordLength + 1];
+char g_adminPassword[tc::kMaxAdminPasswordLength + 1];
+char g_names[tc::kChannelCount][tc::kMaxTurnoutNameLength + 1];
+const char* g_namePointers[tc::kChannelCount];
+bool g_namesLoaded = false;
+
+void randomPassword(char* out) {
+  for (uint8_t i = 0; i < kApPasswordLength; ++i) {
+    out[i] = kApPasswordAlphabet[esp_random() % (sizeof(kApPasswordAlphabet) - 1)];
+  }
+  out[kApPasswordLength] = '\0';
+}
+
+void nameKey(uint8_t index, char* key, size_t size) { snprintf(key, size, "n%u", index + 1); }
+
+void loadNames() {
+  for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+    tc::copyField(g_names[i], sizeof(g_names[i]), local_settings::kTurnoutNames[i]);
+    g_namePointers[i] = g_names[i];
+  }
+  Preferences prefs;
+  if (prefs.begin(kNamesNamespace, true)) {
+    if (prefs.isKey("saved")) {
+      char key[8];
+      for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+        nameKey(i, key, sizeof(key));
+        g_names[i][0] = '\0';
+        if (prefs.isKey(key)) prefs.getString(key, g_names[i], sizeof(g_names[i]));
+      }
+    }
+    prefs.end();
+  }
+  // Something unusable in flash: fall back to the defaults.
+  if (!tc::validateTurnoutNames(g_namePointers, tc::kChannelCount, nullptr)) {
+    for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+      tc::copyField(g_names[i], sizeof(g_names[i]), local_settings::kTurnoutNames[i]);
+    }
+  }
+  g_namesLoaded = true;
+}
 
 void compiledDefaults(tc::NetConfig* config) {
   tc::clearNetConfig(config);
@@ -98,10 +138,7 @@ const char* apPassword() {
   if (open && prefs.isKey("appass")) prefs.getString("appass", g_apPassword, sizeof(g_apPassword));
   if (strlen(g_apPassword) != kApPasswordLength) {
     // Never empty: an empty password would start an open access point.
-    for (uint8_t i = 0; i < kApPasswordLength; ++i) {
-      g_apPassword[i] = kApPasswordAlphabet[esp_random() % (sizeof(kApPasswordAlphabet) - 1)];
-    }
-    g_apPassword[kApPasswordLength] = '\0';
+    randomPassword(g_apPassword);
     if (open) prefs.putString("appass", g_apPassword);
   }
   if (open) prefs.end();
@@ -154,6 +191,73 @@ bool saveLevels(uint16_t levels) {
   return ok;
 }
 
-const char* const* turnoutNames() { return local_settings::kTurnoutNames; }
+const char* adminPassword() {
+  if (g_adminPassword[0] != '\0') return g_adminPassword;
+  Preferences prefs;
+  const bool open = prefs.begin(kPortalNamespace, false);
+  if (open && prefs.isKey("admin")) prefs.getString("admin", g_adminPassword, sizeof(g_adminPassword));
+  if (!tc::validAdminPassword(g_adminPassword)) {
+    // Never empty: that would leave the config page open to anyone.
+    randomPassword(g_adminPassword);
+    if (open) prefs.putString("admin", g_adminPassword);
+  }
+  if (open) prefs.end();
+  return g_adminPassword;
+}
+
+bool setAdminPassword(const char* password) {
+  if (!tc::validAdminPassword(password)) return false;
+  Preferences prefs;
+  if (!prefs.begin(kPortalNamespace, false)) return false;
+  const bool ok = prefs.putString("admin", password) == strlen(password);
+  prefs.end();
+  if (ok) tc::copyField(g_adminPassword, sizeof(g_adminPassword), password);
+  return ok;
+}
+
+const char* const* turnoutNames() {
+  if (!g_namesLoaded) loadNames();
+  return g_namePointers;
+}
+
+bool saveTurnoutNames(const tc::TurnoutNames& names) {
+  Preferences prefs;
+  if (!prefs.begin(kNamesNamespace, false)) return false;
+  bool ok = true;
+  char key[8];
+  for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+    nameKey(i, key, sizeof(key));
+    ok = ok && prefs.putString(key, names.name[i]) == strlen(names.name[i]);
+  }
+  ok = ok && prefs.putBool("saved", true) > 0;
+  prefs.end();
+  if (!g_namesLoaded) loadNames();
+  for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+    tc::copyField(g_names[i], sizeof(g_names[i]), names.name[i]);
+  }
+  return ok;
+}
+
+bool factoryReset() {
+  bool ok = true;
+  const char* const namespaces[] = {kNetNamespace, kBehaviourNamespace, kLevelsNamespace, kNamesNamespace};
+  for (const char* name : namespaces) {
+    Preferences prefs;
+    if (!prefs.begin(name, false)) {
+      ok = false;
+      continue;
+    }
+    ok = prefs.clear() && ok;
+    prefs.end();
+  }
+  Preferences portalPrefs;
+  if (portalPrefs.begin(kPortalNamespace, false)) {
+    if (portalPrefs.isKey("admin")) ok = portalPrefs.remove("admin") && ok;
+    portalPrefs.end();
+  }
+  g_adminPassword[0] = '\0';
+  g_namesLoaded = false;
+  return ok;
+}
 
 }  // namespace settings

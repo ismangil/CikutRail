@@ -1,10 +1,13 @@
-// Network settings (Wi-Fi, MQTT, JMRI channel, node name): limits,
-// validation, and the setup page's form rules. Hardware-free.
+// Settings the web pages edit: network (Wi-Fi, MQTT, JMRI channel, node
+// name), turnout names, behaviour and the admin password. Limits,
+// validation and the form rules. Hardware-free.
 #pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include "behaviour.h"
+#include "channels.h"
 #include "jmri_protocol.h"
 
 namespace tc {
@@ -65,6 +68,28 @@ struct NetForm {
 //   empty user always clears the password.
 // Spaces around the host are dropped.
 bool applyNetForm(const NetConfig& saved, const NetForm& form, NetConfig* out, const char** error);
+
+// JMRI turnout names, one per channel; "" = channel unused.
+struct TurnoutNames {
+  char name[kChannelCount][kMaxTurnoutNameLength + 1];
+};
+
+// "101".."111": node 1's block (docs/MQTT_CONVENTIONS.md).
+void defaultTurnoutNames(TurnoutNames* names);
+
+// Builds names from the config page's 11 fields (spaces around each are
+// dropped) and checks them: valid or empty, none used twice.
+bool parseTurnoutNames(const char* const* fields, TurnoutNames* out, const char** error);
+
+// Builds behaviour settings from the config page's fields: startup
+// "restore"/"low", offline "hold"/"low", stagger and interval in ms.
+bool parseBehaviourForm(const char* startup, const char* offline, const char* staggerMs, const char* intervalMs,
+                        Behaviour* out, const char** error);
+
+// Config page admin password: 8-64 printable ASCII characters, no spaces.
+const uint8_t kMinAdminPasswordLength = 8;
+const uint8_t kMaxAdminPasswordLength = 64;
+bool validAdminPassword(const char* password);
 
 // Escapes & < > " ' for HTML text and attribute values. False if the
 // result (NUL included) doesn't fit in size bytes; out is then empty.

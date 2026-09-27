@@ -29,9 +29,14 @@ void begin(const char* firmwareVersion);
 // setup portal if the saved network can't be joined for a while.
 void loop();
 
-// Switches to new settings (the setup page, after saving) without a
-// reboot: leaves MQTT and Wi-Fi, then joins again with these.
+// Switches to new settings (the setup or config page, after saving)
+// without a reboot. Same Wi-Fi: only MQTT reconnects. Otherwise it leaves
+// Wi-Fi and joins again with these.
 void applyConfig(const tc::NetConfig& config);
+
+// New turnout names (the config page): stops MQTT, saves them, and
+// subscribes again. Channels that lose their name keep their pin level.
+void applyTurnoutNames(const tc::TurnoutNames& names);
 
 // Erases the saved settings, leaves the network and opens the portal.
 void forget();

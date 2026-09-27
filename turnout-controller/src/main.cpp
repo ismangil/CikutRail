@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <esp_system.h>
 
+#include "app.h"
 #include "behaviour.h"
 #include "channels.h"
 #include "command.h"
@@ -14,13 +15,14 @@
 #include "power.h"
 #include "settings.h"
 #include "turnout_bank.h"
+#include "web.h"
 
 namespace {
 
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.3.1-phase3";
+const char* const kFirmwareVersion = "0.4.0-phase4";
 // Levels go to flash this long after the last change, so a burst of
 // changes costs one write.
 const uint32_t kSaveLevelsAfterMs = 2000;
@@ -481,6 +483,47 @@ void configure(const tc::Command& command) {
   printBehaviour();
 }
 
+}  // namespace
+
+namespace app {
+
+void setTurnoutLocal(uint8_t channel, tc::TurnoutState state) {
+  if (channel < 1 || channel > tc::kChannelCount) return;
+  bank::setState(channel, state);
+  g_scheduler.noteApplied(channel, millis());
+  stamp();
+  Serial.printf("web ch%u -> %s (local)\n", channel, tc::stateName(state));
+}
+
+bool isPending(uint8_t channel) { return g_scheduler.isPending(channel); }
+
+const tc::Behaviour& behaviour() { return g_behaviour; }
+
+bool setBehaviour(const tc::Behaviour& behaviour) {
+  g_behaviour = behaviour;
+  g_scheduler.configure(g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+  stamp();
+  Serial.printf("web: behaviour startup %s, offline %s, stagger %u ms, interval %u ms\n",
+                tc::startupLevelName(g_behaviour.startup), tc::offlinePolicyName(g_behaviour.offline),
+                g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+  return settings::saveBehaviour(g_behaviour);
+}
+
+void factoryReset() {
+  stamp();
+  Serial.println("factory reset: erasing saved settings; pins keep their levels");
+  // net::forget() stops MQTT first, so the turnout names can be reset.
+  net::forget();
+  settings::factoryReset();
+  g_behaviour = tc::defaultBehaviour();
+  g_scheduler.configure(g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+  g_haveSavedLevels = false;  // the current levels are saved again shortly
+}
+
+}  // namespace app
+
+namespace {
+
 void readConsole() {
   while (Serial.available() > 0) {
     const char c = static_cast<char>(Serial.read());
@@ -545,5 +588,6 @@ void loop() {
   saveLevelsWhenSteady();
   net::loop();
   portal::loop();
+  web::loop();
   delay(1);
 }

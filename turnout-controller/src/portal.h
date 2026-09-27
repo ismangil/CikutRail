@@ -24,4 +24,10 @@ void loop();
 
 void printStatus();
 
+// Setup page handlers; web.cpp routes access-point requests to them.
+void handleRoot();
+void handleSave();
+void handleStatus();
+void handleScan();
+
 }  // namespace portal

@@ -1,6 +1,7 @@
 #include "net.h"
 
 #include <Arduino.h>
+#include <ESPmDNS.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -12,6 +13,7 @@
 #include "portal.h"
 #include "power.h"
 #include "settings.h"
+#include "web.h"
 
 namespace net {
 namespace {
@@ -42,6 +44,7 @@ uint32_t g_lastInfoMs = 0;
 uint32_t g_wifiDownSinceMs = 0;
 bool g_portalRetrying = false;  // portal open after a Wi-Fi failure
 uint32_t g_lastPortalRetryMs = 0;
+char g_mdnsName[tc::kMaxNodeNameLength + 1];  // name mDNS announces, "" = not started
 
 // Written by the esp-mqtt task, read by the main loop.
 std::atomic<bool> g_mqttUp(false);
@@ -177,12 +180,13 @@ const char* checkTopics() {
   return nullptr;
 }
 
-void startNetwork() {
+// Creates the MQTT client for g_config; loop() starts it once Wi-Fi is up.
+bool startMqtt() {
   const char* error = checkTopics();
   if (error != nullptr) {
     Serial.printf("net: off: %s\n", error);
     g_haveConfig = false;
-    return;
+    return false;
   }
   snprintf(g_statusTopic, sizeof(g_statusTopic), "cikutrail/%s/status", g_config.nodeName);
   snprintf(g_infoTopic, sizeof(g_infoTopic), "cikutrail/%s/info", g_config.nodeName);
@@ -204,18 +208,39 @@ void startNetwork() {
   if (g_client == nullptr) {
     Serial.println("net: off: out of memory starting MQTT");
     g_haveConfig = false;
-    return;
+    return false;
   }
   esp_mqtt_client_register_event(g_client, MQTT_EVENT_ANY, onMqttEvent, nullptr);
+  g_haveConfig = true;
+  return true;
+}
 
+// http://<node>.local for the config page. Restarted when the name changes.
+void startMdns() {
+  if (strcmp(g_mdnsName, g_config.nodeName) == 0) return;
+  if (g_mdnsName[0] != '\0') MDNS.end();
+  g_mdnsName[0] = '\0';
+  if (MDNS.begin(g_config.nodeName)) {
+    MDNS.addService("http", "tcp", 80);
+    tc::copyField(g_mdnsName, sizeof(g_mdnsName), g_config.nodeName);
+    Serial.printf("net: config page at http://%s.local (user admin)\n", g_mdnsName);
+  } else {
+    Serial.println("net: mDNS didn't start; use the IP address");
+  }
+}
+
+void joinWifi() {
   WiFi.setHostname(g_config.nodeName);
   WiFi.mode(portal::isOpen() ? WIFI_AP_STA : WIFI_STA);
   WiFi.setSleep(false);  // modem sleep adds latency to every command
   WiFi.setAutoReconnect(!g_portalRetrying);
   WiFi.begin(g_config.wifiSsid, g_config.wifiPassword);
-  g_haveConfig = true;
   g_wifiDownSinceMs = millis();
   Serial.printf("net: joining Wi-Fi \"%s\" (settings %s)\n", g_config.wifiSsid, sourceName(g_source));
+}
+
+void startNetwork() {
+  if (startMqtt()) joinWifi();
 }
 
 }  // namespace
@@ -233,13 +258,29 @@ void begin(const char* firmwareVersion) {
 }
 
 void applyConfig(const tc::NetConfig& config) {
+  const bool sameWifi = g_haveConfig && strcmp(config.wifiSsid, g_config.wifiSsid) == 0 &&
+                        strcmp(config.wifiPassword, g_config.wifiPassword) == 0;
   stopMqtt();
-  WiFi.disconnect(false);
   g_config = config;
   g_source = settings::Source::Saved;
+  if (sameWifi) {
+    // MQTT, channel or node name only: stay on the network.
+    Serial.println("net: MQTT settings changed, reconnecting");
+    if (startMqtt() && WiFi.status() == WL_CONNECTED) startMdns();
+    return;
+  }
+  WiFi.disconnect(false);
   g_portalRetrying = false;  // a fresh attempt with new settings
   g_lastWifiUp = false;
   startNetwork();
+}
+
+void applyTurnoutNames(const tc::TurnoutNames& names) {
+  // The MQTT task reads the names, so they change only while it is stopped.
+  stopMqtt();
+  const bool saved = settings::saveTurnoutNames(names);
+  Serial.printf("net: turnout names %s, resubscribing\n", saved ? "saved" : "changed (flash write failed)");
+  if (g_haveConfig) startMqtt();
 }
 
 void forget() {
@@ -284,6 +325,8 @@ void loop() {
     if (wifiUp) {
       Serial.printf("net: Wi-Fi up, IP %s, RSSI %d dBm\n", WiFi.localIP().toString().c_str(),
                     static_cast<int>(WiFi.RSSI()));
+      web::begin();
+      startMdns();
       if (g_portalRetrying) {
         g_portalRetrying = false;
         WiFi.setAutoReconnect(true);
@@ -360,6 +403,11 @@ void printStatus() {
                 g_config.mqttPort, g_config.nodeName, g_config.mqttUser[0] != '\0' ? " with login" : "",
                 static_cast<unsigned long>(g_connects));
   Serial.printf("status topic: %s, JMRI state topic: %s\n", g_statusTopic, g_jmriStateTopic);
+  if (wifiUp) {
+    Serial.printf("config page: http://%s.local or http://%s, user admin, password %s\n",
+                  g_mdnsName[0] != '\0' ? g_mdnsName : g_config.nodeName, WiFi.localIP().toString().c_str(),
+                  settings::adminPassword());
+  }
   Serial.printf("JMRI channel: \"%s\"\n", g_config.jmriChannel);
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
