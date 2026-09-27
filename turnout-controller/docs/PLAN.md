@@ -60,6 +60,9 @@ in [WIRING.md](WIRING.md)):
 - **Button single-click reset:** the PM1 resets the ESP32 on a single
   click by default. A reset makes THROWN turnouts pulse, so the config page
   can disable single-click reset (double-click power off stays).
+  (Phase 1 bench: a single click on USB power did not reset the ESP32; see
+  PHASE1_BENCH.md, test 9. Whether this option is needed depends on the
+  battery result.)
 
 ## Hardware summary
 

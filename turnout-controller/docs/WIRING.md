@@ -174,7 +174,7 @@ would be pulled towards 5 V, beyond what the ESP32 pins tolerate.
 | Pad | Use |
 |---|---|
 | **5VIN** | Feed the node from the layout's 5 V supply here (or use USB-C). |
-| **BAT** | 3.7 V Li-ion cell; rides through supply dips and keeps outputs driven. |
+| **BAT** | 3.7 V Li-ion cell; meant to ride through supply dips and keep outputs driven. **Not yet working:** on the phase 1 bench the node lost power when USB-C was unplugged, with the cell at 4.2 V (PHASE1_BENCH.md, test 13). |
 | **3V3** | ESP32 regulator output, 600 mA max, shared with the ESP. **Do not** power the GreenHats from it. |
 | **5VOUT** | Boost output switched by the PM1: GreenHat logic 5 V (header pin 2). |
 | **GND** | Common ground with all GreenHats. |
@@ -190,5 +190,8 @@ the ESP32's Wi-Fi peaks.
 - User button: single-click reset and double-click power off (PM1
   defaults), long press = open the setup portal. A single-click reset
   makes THROWN turnouts pulse (see above); the config page can disable it.
+  **On the phase 1 bench, a single click on USB power did not reset the
+  ESP32**, although the PM1 reported single-click reset enabled and saw
+  the press (PHASE1_BENCH.md, test 9). Not yet tried on battery.
 - Battery voltage, 5 V input voltage, charging status
 - WAKE pad (PM1 G4); not used
