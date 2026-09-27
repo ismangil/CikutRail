@@ -37,7 +37,17 @@ jobs:
       - name: Unit tests (PC)
         run: pio test -e native
 
-      - name: Build firmware
+      # Without settings the compiler drops the Wi-Fi/MQTT code as dead, so
+      # build with placeholders too, to compile and link it.
+      - name: Build firmware (placeholder Wi-Fi settings)
+        run: |
+          sed -e 's/kWifiSsid = ""/kWifiSsid = "ci"/' -e 's/kMqttHost = ""/kMqttHost = "ci"/' \
+            src/local_settings.example.h > src/local_settings.h
+          pio run -e stamp-s3bat
+          rm src/local_settings.h
+
+      # Last, so the uploaded .bin carries no Wi-Fi settings.
+      - name: Build firmware (no Wi-Fi settings)
         run: pio run -e stamp-s3bat
 
       - uses: actions/upload-artifact@v4

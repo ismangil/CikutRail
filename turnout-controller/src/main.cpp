@@ -1,11 +1,13 @@
-// Phase 1 bench firmware: drive the 11 turnout pins from USB serial
-// commands and report how pins and 5VOUT behave across resets.
-// See docs/PHASE1_BENCH.md for the test procedure.
+// Turnout node firmware. Phase 2: JMRI MQTT turnouts over Wi-Fi
+// (docs/PHASE2_BENCH.md), plus the phase 1 bench console on USB serial
+// (docs/PHASE1_BENCH.md).
 #include <Arduino.h>
 #include <esp_system.h>
 
 #include "channels.h"
 #include "command.h"
+#include "jmri_protocol.h"
+#include "net.h"
 #include "power.h"
 #include "turnout_bank.h"
 
@@ -13,7 +15,8 @@ namespace {
 
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
-const char* const kFirmwareName = "CikutRail turnout-controller, phase 1 bench firmware";
+const char* const kFirmwareName = "CikutRail turnout-controller";
+const char* const kFirmwareVersion = "0.2.0-phase2";
 
 struct CycleJob {
   bool active = false;
@@ -91,7 +94,7 @@ void printStatus() {
 
 void printBootReport() {
   const bank::BootReport& boot = bank::bootReport();
-  Serial.printf("\n%s\n", kFirmwareName);
+  Serial.printf("\n%s %s\n", kFirmwareName, kFirmwareVersion);
   Serial.printf("reset reason: %s (ROM code 0x%02lx)\n", resetReasonName(boot.resetReason),
                 static_cast<unsigned long>(boot.romResetReason));
   Serial.printf("console reset before this boot: %s\n", resetKindName(boot.plannedReset));
@@ -128,6 +131,7 @@ void printHelp() {
       "                            watchdog; 5v-off turns 5VOUT off first\n"
       "  pm1                       battery, input and 5 V readings\n"
       "  pm1 btn                   button settings, and whether it was pressed\n"
+      "  net                       Wi-Fi, MQTT, turnout topics and message counts\n"
       "  help | ?                  this list\n"
       "Any command stops a running cycle.");
 }
@@ -248,6 +252,9 @@ void execute(const tc::Command& command) {
     case tc::CommandType::Pm1Buttons:
       printButtons();
       break;
+    case tc::CommandType::Net:
+      net::printStatus();
+      break;
   }
 }
 
@@ -258,6 +265,32 @@ void runCycle() {
   if (++g_cycle.done >= g_cycle.count) {
     g_cycle.active = false;
     Serial.println("cycle done");
+  }
+}
+
+// Applies turnout commands from JMRI. Only a real change touches the pin;
+// UNKNOWN, INCONSISTENT and anything else are logged and ignored.
+void applyTurnoutMessages() {
+  net::TurnoutMessage message;
+  while (net::nextTurnoutMessage(&message)) {
+    const char* name = net::turnoutName(message.channel);
+    const char* retained = message.retained ? " (retained)" : "";
+    if (message.payload != tc::JmriPayload::Closed && message.payload != tc::JmriPayload::Thrown) {
+      Serial.printf("mqtt %s %s%s: ignored\n", name, tc::payloadName(message.payload), retained);
+      net::noteOutcome(net::Outcome::Ignored);
+      continue;
+    }
+    const tc::TurnoutState target =
+        message.payload == tc::JmriPayload::Closed ? tc::TurnoutState::Closed : tc::TurnoutState::Thrown;
+    if (bank::state(message.channel) == target) {
+      Serial.printf("mqtt %s %s%s: ch%u unchanged\n", name, tc::stateName(target), retained, message.channel);
+      net::noteOutcome(net::Outcome::Unchanged);
+      continue;
+    }
+    bank::setState(message.channel, target);
+    Serial.printf("mqtt %s %s%s: ch%u -> %s\n", name, tc::stateName(target), retained, message.channel,
+                  tc::stateName(target));
+    net::noteOutcome(net::Outcome::Applied);
   }
 }
 
@@ -306,10 +339,13 @@ void setup() {
   while (!Serial && millis() - start < kSerialWaitMs) delay(10);
   printBootReport();
   Serial.println("type help for commands");
+  net::begin(kFirmwareVersion);
 }
 
 void loop() {
   readConsole();
   runCycle();
+  applyTurnoutMessages();
+  net::loop();
   delay(1);
 }

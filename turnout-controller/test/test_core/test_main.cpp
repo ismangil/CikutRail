@@ -4,6 +4,7 @@
 
 #include "channels.h"
 #include "command.h"
+#include "jmri_protocol.h"
 #include "level_snapshot.h"
 #include "turnout_state.h"
 
@@ -86,6 +87,8 @@ void test_simple_commands() {
   TEST_ASSERT_TRUE(parseCommand("pm1 BTN").command.type == CommandType::Pm1Buttons);
   TEST_ASSERT_FALSE(parseCommand("pm1 btn now").ok);
   TEST_ASSERT_FALSE(parseCommand("pm1 led").ok);
+  TEST_ASSERT_TRUE(parseCommand("NET").command.type == CommandType::Net);
+  TEST_ASSERT_FALSE(parseCommand("net up").ok);
   TEST_ASSERT_FALSE(parseCommand("boot again").ok);
   TEST_ASSERT_FALSE(parseCommand("status now").ok);
 }
@@ -226,6 +229,90 @@ void test_snapshot_detects_corruption() {
   TEST_ASSERT_FALSE(snapshotValid(garbage));
 }
 
+
+// --- JMRI protocol ---
+
+const char* const kNames[kChannelCount] = {"101", "102", "103", "104", "105", "106",
+                                           "107", "108", "109", "110", ""};
+
+uint8_t match(const char* channel, const char* topic) {
+  return matchTurnoutTopic(channel, kNames, kChannelCount, topic, strlen(topic));
+}
+
+void test_payloads_match_jmri_exactly() {
+  TEST_ASSERT_TRUE(parseTurnoutPayload("CLOSED", 6) == JmriPayload::Closed);
+  TEST_ASSERT_TRUE(parseTurnoutPayload("THROWN", 6) == JmriPayload::Thrown);
+  TEST_ASSERT_TRUE(parseTurnoutPayload("UNKNOWN", 7) == JmriPayload::Unknown);
+  TEST_ASSERT_TRUE(parseTurnoutPayload("INCONSISTENT", 12) == JmriPayload::Inconsistent);
+  // Not NUL-terminated: esp-mqtt passes a length.
+  TEST_ASSERT_TRUE(parseTurnoutPayload("THROWNxyz", 6) == JmriPayload::Thrown);
+  TEST_ASSERT_TRUE(parseTurnoutPayload("closed", 6) == JmriPayload::Other);
+  TEST_ASSERT_TRUE(parseTurnoutPayload("CLOSED ", 7) == JmriPayload::Other);
+  TEST_ASSERT_TRUE(parseTurnoutPayload("", 0) == JmriPayload::Other);
+  TEST_ASSERT_TRUE(parseTurnoutPayload(nullptr, 0) == JmriPayload::Other);
+  TEST_ASSERT_EQUAL_STRING("INCONSISTENT", payloadName(JmriPayload::Inconsistent));
+}
+
+void test_channel_and_name_rules() {
+  TEST_ASSERT_TRUE(validJmriChannel(""));
+  TEST_ASSERT_TRUE(validJmriChannel("/trains/"));
+  TEST_ASSERT_TRUE(validJmriChannel("layout/"));
+  TEST_ASSERT_FALSE(validJmriChannel("/trains"));
+  TEST_ASSERT_FALSE(validJmriChannel("a+/"));
+  TEST_ASSERT_FALSE(validJmriChannel("a #/"));
+  TEST_ASSERT_FALSE(validJmriChannel(nullptr));
+
+  TEST_ASSERT_TRUE(validTurnoutName("101"));
+  TEST_ASSERT_TRUE(validTurnoutName("yard_2-a"));
+  TEST_ASSERT_FALSE(validTurnoutName(""));
+  TEST_ASSERT_FALSE(validTurnoutName("1/2"));
+  TEST_ASSERT_FALSE(validTurnoutName("+"));
+  TEST_ASSERT_FALSE(validTurnoutName("12345678901234567"));
+  TEST_ASSERT_TRUE(validNodeName("turnout1"));
+  TEST_ASSERT_FALSE(validNodeName("turnout 1"));
+}
+
+void test_turnout_name_table() {
+  const char* error = "unset";
+  TEST_ASSERT_TRUE(validateTurnoutNames(kNames, kChannelCount, &error));
+  TEST_ASSERT_NULL(error);
+  const char* const duplicate[] = {"101", "", "101"};
+  TEST_ASSERT_FALSE(validateTurnoutNames(duplicate, 3, &error));
+  TEST_ASSERT_NOT_NULL(error);
+  const char* const bad[] = {"101", "1#"};
+  TEST_ASSERT_FALSE(validateTurnoutNames(bad, 2, &error));
+  const char* const unused[] = {"", nullptr, ""};
+  TEST_ASSERT_TRUE(validateTurnoutNames(unused, 3, nullptr));
+}
+
+void test_turnout_topic() {
+  char topic[kMaxTopicLength + 1];
+  TEST_ASSERT_TRUE(turnoutTopic("", "101", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("track/turnout/101", topic);
+  TEST_ASSERT_TRUE(turnoutTopic("/trains/", "101", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("/trains/track/turnout/101", topic);
+  char small[17];
+  TEST_ASSERT_FALSE(turnoutTopic("", "101", small, sizeof(small)));
+}
+
+void test_topic_matching() {
+  TEST_ASSERT_EQUAL_UINT8(1, match("", "track/turnout/101"));
+  TEST_ASSERT_EQUAL_UINT8(10, match("", "track/turnout/110"));
+  TEST_ASSERT_EQUAL_UINT8(3, match("/trains/", "/trains/track/turnout/103"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "/trains/track/turnout/103"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("/trains/", "track/turnout/103"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "track/turnout/101/state"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "track/turnout/10"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "track/turnout/1011"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "track/turnout/"));
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "track/sensor/101"));
+  // Channel 11 has no name, so nothing maps to it.
+  TEST_ASSERT_EQUAL_UINT8(0, match("", "track/turnout/"));
+  // Topic given by length, not NUL-terminated.
+  const char buffer[] = "track/turnout/102junk";
+  TEST_ASSERT_EQUAL_UINT8(2, matchTurnoutTopic("", kNames, kChannelCount, buffer, 17));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_default_channel_table_is_valid);
@@ -244,5 +331,10 @@ int main() {
   RUN_TEST(test_snapshot_round_trip);
   RUN_TEST(test_snapshot_masks_unused_bits);
   RUN_TEST(test_snapshot_detects_corruption);
+  RUN_TEST(test_payloads_match_jmri_exactly);
+  RUN_TEST(test_channel_and_name_rules);
+  RUN_TEST(test_turnout_name_table);
+  RUN_TEST(test_turnout_topic);
+  RUN_TEST(test_topic_matching);
   return UNITY_END();
 }

@@ -149,6 +149,11 @@ ParseResult parseCommand(const char* line) {
     command.type = CommandType::Boot;
     return succeed(command);
   }
+  if (equalsIgnoreCase(verb, "net")) {
+    if (count != 1) return fail("usage: net");
+    command.type = CommandType::Net;
+    return succeed(command);
+  }
   if (equalsIgnoreCase(verb, "pm1")) {
     if (count == 1) {
       command.type = CommandType::Pm1;

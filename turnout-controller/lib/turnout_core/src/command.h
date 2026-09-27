@@ -19,6 +19,7 @@ enum class CommandType : uint8_t {
   Reset,      // reset soft|panic|wdt [5v-off]
   Pm1,        // pm1
   Pm1Buttons, // pm1 btn
+  Net,        // net
 };
 
 enum class ResetKind : uint8_t { Soft, Panic, Watchdog };
