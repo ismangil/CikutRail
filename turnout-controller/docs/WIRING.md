@@ -29,7 +29,8 @@ spare).
 - 3.3 V push-pull outputs, the same as Raspberry Pi GPIO. `CLOSED` = HIGH,
   `THROWN` = LOW (JMRI's "Inverted" setting swaps them).
 - **G3** is an ESP32-S3 strapping pin (JTAG source select). It is normally
-  harmless; phase 1 checks it through a reset.
+  harmless, but not yet checked through a reset (the phase 1 reset tests
+  were skipped).
 
 Pins not used for turnouts: G0 (boot, driven by the PM1), G19/G20 (USB),
 G43/G44 (UART), G47/G48 (internal I2C to the PM1), G45/G46 (strapping).
@@ -121,10 +122,11 @@ its input takes the wrong level.
      Turning 5VOUT off first might add a margin, but it isn't certain:
      pins driven HIGH keep partly powering the GreenHat's 5 V rail
      through its pull-ups, and the delay capacitors can keep the XOR gate
-     alive while the pins float. Phase 1 tests both.
+     alive while the pins float. Neither has been bench-tested yet (the
+     phase 1 reset tests were skipped).
    - **Unplanned resets** (crash, watchdog, PM1 button reset) happen
-     with 5VOUT still on, so item 1 applies. Phase 1 checks whether the
-     PM1 keeps 5VOUT on through each kind of ESP32 reset.
+     with 5VOUT still on, so item 1 applies. Whether the PM1 keeps 5VOUT
+     on through each kind of ESP32 reset is still open.
    - With the Pi's always-on 5 V, every channel pulsed CLOSED at GreenHat
      power-up and THROWN turnouts were then put back.
 3. **3.3 V into 5 V logic.** The XOR gate (U3) must be the

@@ -150,13 +150,18 @@ USB-C with a battery fitted (4.2 V), Pi with a Pi-SPROG (port named by id).
 | 4 Repeated changes | Pass | 10 clean movements, trimmer at the shortest reliable pulse. |
 | 5 5VOUT on / off, voltage | Pass | About 5 V / 0 V at header pin 2, no movement. `pm1` "5V rail" doesn't track the pad. |
 | 6 Latch on: soft / panic / wdt | Skipped | |
-| 7 Latch off: soft / panic / wdt | Not run | |
-| 8 5VOUT off first | Not run | |
+| 7 Latch off: soft / panic / wdt | Skipped | |
+| 8 5VOUT off first | Skipped | |
 | 9 Button reset | No reset | On USB power, 3 single clicks: `pm1 btn` showed single-click reset enabled and the press registered, but the ESP32 didn't reset. No movement. |
 | 10 Power cycle | Pass | No movement, 3 times. |
-| 11 G3 same as G1 | Not run | |
-| 12 Float time | Not run | |
+| 11 G3 same as G1 | Skipped | |
+| 12 Float time | Skipped | |
 | Battery ride-through | Dropped | With a cell fitted (4.2 V), unplugging USB-C cut the node's power. The layout doesn't use a battery, so this wasn't pursued. |
+
+Tests 6–8, 11 and 12 (the reset tests) were skipped, so these stay open:
+which resets the pin latch survives, whether the PM1 keeps 5VOUT on
+through each kind of ESP32 reset, whether turning 5VOUT off first helps,
+how G3 behaves through a reset, and how long the pins float.
 
 Other findings:
 

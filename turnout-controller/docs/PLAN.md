@@ -122,9 +122,10 @@ M5Stack products, and some of those pins are turnout outputs here.
    early in boot as possible to shorten the time the pins float (from
    Arduino's `initVariant()`, before `setup()`), and
    latch it (`gpio_hold_en`) to try to keep outputs steady across
-   software resets and OTA reboots. Phase 1 measures the float time and
-   which reset types the latch survives (a PM1 button reset or power
-   cycle is expected to clear it).
+   software resets and OTA reboots. The float time and which reset types
+   the latch survives are still unmeasured (the phase 1 reset tests were
+   skipped); the pins are driven about 100 ms after app start. A power
+   cycle starts cold with no movement.
 3. Turn on 5VOUT (GreenHat logic power, PM1 G1) only after the pins are
    at their levels, so THROWN turnouts don't pulse at startup.
 4. Start Wi-Fi (modem sleep off for low latency).
@@ -207,6 +208,11 @@ Each phase is tested on real hardware before the next starts.
      through each kind of ESP32 reset;
    - the 5VOUT power sequence: no THROWN turnout pulses at cold start or
      on a planned restart.
+
+   Bench run 1 ([PHASE1_BENCH.md](PHASE1_BENCH.md)) covered the pulse,
+   coil-off, 5VOUT and cold-start checks. The reset checks (float time,
+   the pin latch, G3, 5VOUT through a reset, planned restart) were
+   skipped and stay open.
 2. **MQTT.** Wi-Fi + broker with a temporary compiled-in settings file.
    JMRI turnouts in DIRECT mode, checked against a JMRI panel.
    `tools/mqtt_exercise.py` for repeatable tests.
