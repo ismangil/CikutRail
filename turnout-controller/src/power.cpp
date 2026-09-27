@@ -47,4 +47,11 @@ bool read(Readings* readings) {
          g_pm1.read5VInOut(&readings->fiveVoltMv) == M5PM1_OK;
 }
 
+bool readButtons(Buttons* buttons) {
+  if (!g_available) return false;
+  return g_pm1.getSingleResetDisable(&buttons->singleClickResetDisabled) == M5PM1_OK &&
+         g_pm1.getDoubleOffDisable(&buttons->doubleClickOffDisabled) == M5PM1_OK &&
+         g_pm1.btnGetFlag(&buttons->pressedSinceLastRead) == M5PM1_OK;
+}
+
 }  // namespace power

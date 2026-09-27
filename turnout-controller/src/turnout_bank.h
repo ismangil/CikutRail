@@ -12,6 +12,7 @@ namespace bank {
 
 struct BootReport {
   esp_reset_reason_t resetReason;
+  uint32_t romResetReason;   // raw ROM code, e.g. 0x1 POWERON, 0x15 USB_UART_CHIP_RESET
   bool restored;             // levels came from the RTC snapshot
   uint8_t plannedReset;      // console reset that led to this boot: ResetKind + 1, 0 = none
   uint16_t padLevelsAtBoot;  // pads as read before driving (only meaningful for held pads)

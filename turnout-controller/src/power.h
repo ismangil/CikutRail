@@ -21,4 +21,12 @@ struct Readings {
 };
 bool read(Readings* readings);
 
+// Button settings, read only. pressedSinceLastRead clears the PM1's flag.
+struct Buttons {
+  bool singleClickResetDisabled;
+  bool doubleClickOffDisabled;
+  bool pressedSinceLastRead;
+};
+bool readButtons(Buttons* buttons);
+
 }  // namespace power

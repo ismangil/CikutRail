@@ -28,6 +28,8 @@ CycleJob g_cycle;
 char g_line[tc::kMaxLineLength + 1];
 size_t g_lineLength = 0;
 bool g_lineOverflow = false;
+bool g_fiveVoltWasOn = false;  // 5VOUT as found at boot, for the boot report
+bool g_fiveVoltKnown = false;
 
 const char* resetReasonName(esp_reset_reason_t reason) {
   switch (reason) {
@@ -87,20 +89,22 @@ void printStatus() {
   }
 }
 
-void printBootReport(bool fiveVoltWasOn, bool fiveVoltKnown) {
+void printBootReport() {
   const bank::BootReport& boot = bank::bootReport();
   Serial.printf("\n%s\n", kFirmwareName);
-  Serial.printf("reset reason: %s\n", resetReasonName(boot.resetReason));
+  Serial.printf("reset reason: %s (ROM code 0x%02lx)\n", resetReasonName(boot.resetReason),
+                static_cast<unsigned long>(boot.romResetReason));
   Serial.printf("console reset before this boot: %s\n", resetKindName(boot.plannedReset));
   Serial.printf("pin levels: %s\n", boot.restored ? "restored from RTC memory" : "cold start, all LOW (THROWN)");
   printLevels("pads read at boot, before driving:", boot.padLevelsAtBoot);
   Serial.printf("pins driven %lld us after app start\n", static_cast<long long>(boot.drivenAtUs));
   if (!power::available()) {
     Serial.println("PM1: not found; 5VOUT not controlled");
-  } else if (!fiveVoltKnown) {
+  } else if (!g_fiveVoltKnown) {
     Serial.println("5VOUT at boot: unknown (PM1 read failed)");
   } else {
-    Serial.printf("5VOUT at boot: %s%s\n", onOff(fiveVoltWasOn), fiveVoltWasOn ? "" : ", turned on after pins were driven");
+    Serial.printf("5VOUT at boot: %s%s\n", onOff(g_fiveVoltWasOn),
+                  g_fiveVoltWasOn ? "" : ", turned on after pins were driven");
   }
   Serial.println();
   printStatus();
@@ -110,6 +114,7 @@ void printHelp() {
   Serial.println(
       "Commands (channels: 3, 1-4,7 or all):\n"
       "  status | s                show channels, pin latch, 5VOUT\n"
+      "  boot                      print this boot's report again\n"
       "  close | c <channels>      drive HIGH (CLOSED)\n"
       "  throw | t <channels>      drive LOW (THROWN)\n"
       "  toggle <channels>         flip each channel\n"
@@ -122,6 +127,7 @@ void printHelp() {
       "                            reset the ESP32: esp_restart, abort, or interrupt\n"
       "                            watchdog; 5v-off turns 5VOUT off first\n"
       "  pm1                       battery, input and 5 V readings\n"
+      "  pm1 btn                   button settings, and whether it was pressed\n"
       "  help | ?                  this list\n"
       "Any command stops a running cycle.");
 }
@@ -151,6 +157,17 @@ void printReadings() {
   Serial.printf("battery %u mV, input %u mV, 5V rail %u mV\n", readings.batteryMv, readings.inputMv,
                 readings.fiveVoltMv);
   printFiveVolt();
+}
+
+void printButtons() {
+  power::Buttons buttons;
+  if (!power::readButtons(&buttons)) {
+    Serial.println("PM1 button settings unavailable");
+    return;
+  }
+  Serial.printf("single-click reset: %s\n", buttons.singleClickResetDisabled ? "disabled" : "enabled");
+  Serial.printf("double-click power off: %s\n", buttons.doubleClickOffDisabled ? "disabled" : "enabled");
+  Serial.printf("pressed since last read: %s\n", buttons.pressedSinceLastRead ? "yes" : "no");
 }
 
 [[noreturn]] void resetNow(const tc::Command& command) {
@@ -195,6 +212,9 @@ void execute(const tc::Command& command) {
     case tc::CommandType::Status:
       printStatus();
       break;
+    case tc::CommandType::Boot:
+      printBootReport();
+      break;
     case tc::CommandType::Close:
     case tc::CommandType::Throw:
     case tc::CommandType::Toggle:
@@ -224,6 +244,9 @@ void execute(const tc::Command& command) {
       resetNow(command);
     case tc::CommandType::Pm1:
       printReadings();
+      break;
+    case tc::CommandType::Pm1Buttons:
+      printButtons();
       break;
   }
 }
@@ -274,16 +297,14 @@ void setup() {
 
   // Pins are already at their levels, so turning 5VOUT on now can't make
   // a THROWN turnout pulse.
-  bool fiveVoltWasOn = false;
-  bool fiveVoltKnown = false;
   if (power::begin()) {
-    fiveVoltKnown = power::fiveVoltOut(&fiveVoltWasOn);
-    if (fiveVoltKnown && !fiveVoltWasOn) power::setFiveVoltOut(true);
+    g_fiveVoltKnown = power::fiveVoltOut(&g_fiveVoltWasOn);
+    if (g_fiveVoltKnown && !g_fiveVoltWasOn) power::setFiveVoltOut(true);
   }
 
   const uint32_t start = millis();
   while (!Serial && millis() - start < kSerialWaitMs) delay(10);
-  printBootReport(fiveVoltWasOn, fiveVoltKnown);
+  printBootReport();
   Serial.println("type help for commands");
 }
 

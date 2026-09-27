@@ -82,6 +82,11 @@ void test_simple_commands() {
   TEST_ASSERT_TRUE(parseCommand("  Status ").command.type == CommandType::Status);
   TEST_ASSERT_TRUE(parseCommand("s").command.type == CommandType::Status);
   TEST_ASSERT_TRUE(parseCommand("PM1").command.type == CommandType::Pm1);
+  TEST_ASSERT_TRUE(parseCommand("Boot").command.type == CommandType::Boot);
+  TEST_ASSERT_TRUE(parseCommand("pm1 BTN").command.type == CommandType::Pm1Buttons);
+  TEST_ASSERT_FALSE(parseCommand("pm1 btn now").ok);
+  TEST_ASSERT_FALSE(parseCommand("pm1 led").ok);
+  TEST_ASSERT_FALSE(parseCommand("boot again").ok);
   TEST_ASSERT_FALSE(parseCommand("status now").ok);
 }
 

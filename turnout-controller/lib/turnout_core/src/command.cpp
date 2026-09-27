@@ -144,9 +144,19 @@ ParseResult parseCommand(const char* line) {
     command.type = CommandType::Status;
     return succeed(command);
   }
+  if (equalsIgnoreCase(verb, "boot")) {
+    if (count != 1) return fail("usage: boot");
+    command.type = CommandType::Boot;
+    return succeed(command);
+  }
   if (equalsIgnoreCase(verb, "pm1")) {
-    if (count != 1) return fail("usage: pm1");
-    command.type = CommandType::Pm1;
+    if (count == 1) {
+      command.type = CommandType::Pm1;
+    } else if (count == 2 && equalsIgnoreCase(tokens[1], "btn")) {
+      command.type = CommandType::Pm1Buttons;
+    } else {
+      return fail("usage: pm1 [btn]");
+    }
     return succeed(command);
   }
 

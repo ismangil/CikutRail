@@ -2,6 +2,7 @@
 
 #include <driver/gpio.h>
 #include <esp_attr.h>
+#include <esp_rom_sys.h>
 #include <esp_timer.h>
 
 #include "channels.h"
@@ -34,6 +35,7 @@ void saveSnapshot(uint8_t plannedReset) {
 
 void earlyInit() {
   g_boot.resetReason = esp_reset_reason();
+  g_boot.romResetReason = esp_rom_get_reset_reason(0);
   g_boot.restored = tc::snapshotValid(g_snapshot);
   g_boot.plannedReset = g_boot.restored ? g_snapshot.plannedReset : 0;
   g_levels = g_boot.restored ? g_snapshot.levels : kColdBootLevels;

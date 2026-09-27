@@ -9,6 +9,7 @@ namespace tc {
 enum class CommandType : uint8_t {
   Help,
   Status,
+  Boot,       // boot
   Close,      // close <channels>
   Throw,      // throw <channels>
   Toggle,     // toggle <channels>
@@ -17,6 +18,7 @@ enum class CommandType : uint8_t {
   Hold,       // hold [on|off]
   Reset,      // reset soft|panic|wdt [5v-off]
   Pm1,        // pm1
+  Pm1Buttons, // pm1 btn
 };
 
 enum class ResetKind : uint8_t { Soft, Panic, Watchdog };
