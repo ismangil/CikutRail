@@ -108,7 +108,7 @@ MT101.
 | 5 Stagger | Pass | 1000 ms: changes at 125.723, 126.723, 127.723 s. |
 | 6 Minimum interval | Pass | 3000 ms: four commands 300 ms apart gave two changes, the second exactly 3000 ms after the first. The dropped waiting change wasn't logged (fixed in 0.3.1). |
 | 7 JMRI offline, hold | Pass | `pkill -9`: the broker published JMRI's OFFLINE within seconds; `holding every turnout`, nothing moved. |
-| 8 JMRI offline, low | Pass | All CLOSED channels to THROWN at once. After JMRI restarted, MT101 showed CLOSED while the pin stayed LOW; 0.3.1 re-reads the retained commands when JMRI returns. |
+| 8 JMRI offline, low | Pass | All CLOSED channels to THROWN at once. On 0.3.0, after JMRI restarted, MT101 showed CLOSED while the pin stayed LOW. Repeated on 0.3.1: 300 ms after JMRI's empty `track/state`, the re-read put ch1-3 back to CLOSED, matching JMRI's table. |
 | 9 Clean JMRI quit | Pass | A menu quit also publishes OFFLINE; the node held. |
 | 10 Settings kept | Pass | `startup low` survived the power cut in test 4. |
 
