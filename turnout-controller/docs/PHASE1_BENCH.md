@@ -30,6 +30,19 @@ pio run -e stamp-s3bat -t upload
 pio device monitor -e stamp-s3bat
 ```
 
+**On a Pi that also runs JMRI with a Pi-SPROG** (or any other serial
+device), name the S3Bat's port instead of letting PlatformIO pick one, so
+nothing ever opens the SPROG's port (`/dev/ttyAMA0` / `/dev/serial0`).
+The S3Bat appears over USB as `/dev/ttyACM*`; its stable name is under
+`/dev/serial/by-id/`:
+
+```
+ls /dev/serial/by-id/                  # find the Espressif USB entry
+PORT=/dev/serial/by-id/usb-Espressif...   # the full name from the list
+pio run -e stamp-s3bat -t upload --upload-port "$PORT"
+pio device monitor -e stamp-s3bat --port "$PORT"
+```
+
 Upload resets the board into download mode over USB by itself. If it
 can't find the board, check M5Stack's Stamp-S3Bat page for the
 download-mode button sequence. Type `help` for the command list.
