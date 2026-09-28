@@ -259,6 +259,10 @@ Each phase is tested on real hardware before the next starts.
   bootloader's image check. A smaller image, or building the bootloader
   to skip the check on reset, would shorten it; the pin latch might cover
   it, if it holds (unmeasured).
-- The USB console occasionally loses a line of output, and stray input
-  arrives when the port reappears (likely ModemManager; see
-  PHASE1_BENCH.md for the udev rule).
+- Stray input arrives on the USB console when the port reappears (likely
+  ModemManager; see PHASE1_BENCH.md for the udev rule). The lost output
+  lines seen in phases 2-3 were at least partly two bench programs
+  reading the console at once (PHASE4_BENCH.md, run 1).
+- The config page stalls for up to 5 s when a browser holds an idle
+  connection (Arduino `WebServer` serves one at a time). Switch to
+  `esp_http_server` if it matters in use.

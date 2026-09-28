@@ -38,12 +38,16 @@ Keep the node's console open. Use a phone or laptop on the home network.
 1. **Reach the page.** `net` on the console shows the page's address and
    the admin password. Open `http://turnout1.local` (or the IP): the
    browser asks for a login; `admin` and the password open the page. A
-   wrong password is refused.
+   wrong password is refused. Some devices (many Android browsers, some
+   Windows setups) can't resolve `.local` names; use the IP address, and
+   give the node a DHCP reservation so it stays the same.
 2. **Setup page not on the home network.** The page at the node's IP
    never shows the setup form, and `http://<IP>/save` answers 404.
 3. **Test buttons.** Throw, then Close on channel 1: one movement each,
    `web ch1 -> THROWN (local)` on the console. Enter in a name field
-   saves names and doesn't move anything.
+   saves names and doesn't move anything. Saving names resubscribes, so
+   the broker re-sends every retained command: a turnout changed with a
+   test button goes back to JMRI's last command.
 4. **Names.** Rename channel 2 to `120`, save: the console shows the
    resubscribe, `net` lists `track/turnout/120`, and
    `tools/mqtt_exercise.py set 120 CLOSED` changes channel 2. A duplicate
@@ -73,3 +77,31 @@ Keep the node's console open. Use a phone or laptop on the home network.
 | 7 Admin password | | |
 | 8 Stale form | | |
 | 9 Factory reset | | |
+
+### Run 1, 2026-09-28
+
+Firmware 0.4.0-phase4, same bench as phase 3, browser on a phone.
+
+| Test | Result | Notes |
+|---|---|---|
+| 1 Reach the page | Pass | Login works; no login or a wrong password gets 401. `turnout1.local` resolved once, then gave "address not found" on the phone; the IP works. The node answers mDNS correctly (checked from the Pi), so it's the phone's `.local` support. |
+| 2 Setup page not on the home network | Pass | `POST /save` from the home network gets 404. |
+| 3 Test buttons | Pass | Throw and Close each moved the Kato once; Enter in a name field saved names, nothing moved. |
+| 4 Names | Pass | Channel 2 renamed `120` answered `track/turnout/120`; a duplicate name was refused; names restored (resubscribing put channel 2 back to its retained CLOSED). |
+| 5 Behaviour | Pass | Stagger 500 set on the page showed in `config`. |
+| 6 Network, same Wi-Fi | Skipped | |
+| 7 Admin password | Skipped | |
+| 8 Stale form | Not run | |
+| 9 Factory reset | Not run | |
+
+Findings:
+
+- **The web server handles one connection at a time.** An idle open
+  connection (browsers keep spare ones) stalls the page for up to 5 s
+  (Arduino `WebServer`'s fixed `HTTP_MAX_DATA_WAIT`); measured 4.1 s
+  against 0.15 s. The main loop keeps running meanwhile, so turnout
+  commands aren't delayed. Left as is; ESP-IDF's `esp_http_server` would
+  remove the stall if it becomes a problem.
+- **The lost console lines were at least partly the bench tooling**:
+  two programs reading the node's USB console at once split its output
+  between them. With one reader at a time the output was complete.
