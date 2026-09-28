@@ -146,9 +146,9 @@ Shared parts per GreenHat:
 |---|---|---|
 | DRV8313 | 4 | 4 (unchanged) |
 | 74HC86 | 2 | 2 × **74HCT86D** (LCSC C6005), 6 gates used, 2 spare. See below |
-| RC delay + 1 MΩ trimmer | 6 | 6 (unchanged) |
+| RC delay + 1 MΩ trimmer | 6 | 6 RC delays, **no trimmers**: fixed 10 kΩ × 10 µF (see "Pulse length") |
 | Input pull-up + 100 nF | 6 | 6. Pull-ups stay on 5 V; 10 kΩ (Basic part) instead of 10.2 kΩ |
-| RC delay's series resistor | 10.2 kΩ | 10 kΩ (Basic part); the trimmer sets the pulse length anyway |
+| RC delay's series resistor | 10.2 kΩ | 10 kΩ (Basic part) |
 | DRV8313 charge-pump cap (CP1–CP2) | 100 nF | **10 nF**, as the DRV8313 datasheet specifies |
 | DRV8313 V3P3OUT cap | 4.7 nF | **470 nF**, as the DRV8313 datasheet specifies |
 | DRV8313 VM decoupling | 100 nF per chip pair | 100 nF per VM pin, plus 22 µF bulk per block |
@@ -294,6 +294,33 @@ What changes in behaviour:
     resets once the fault is gone and it cools.
   - **Drop:** about 0.1 Ω, under 0.1 V at the node's idle current.
 
+### Pulse length: fixed, no trimmers
+
+The GreenHat's 1 MΩ trimmers are left out.
+
+- **Why it's safe:** on the layout they're set fully counter-clockwise.
+  That puts the wiper at pin 1: a meter reads **0 Ω** across the trimmer,
+  confirmed 2026-09-28. So the trimmer adds nothing, and the pulse comes
+  from the 10 kΩ series resistor and the 10 µF capacitor alone
+  (τ ≈ 100 ms).
+- **How the length arises:** the delayed side follows the input once the
+  capacitor crosses the XOR gate's threshold. The S3Bat drives the line
+  between 0 V and 3.3 V.
+
+  | Gate | CLOSED pulse (rising edge) | THROWN pulse (falling edge) |
+  |---|---|---|
+  | 74HC86 (today, threshold ~2.5 V) | ~140 ms | ~30 ms |
+  | 74HCT86 (this board, threshold ~1.4 V) | ~55 ms | ~85 ms |
+  | 74HCT86, over its spec threshold range (0.8–2.0 V) | 30–95 ms | 50–140 ms |
+
+- **Kato:** both new lengths lie between the two the layout's turnouts
+  already switch with, so they should throw reliably. The HCT86 also
+  makes the two directions more even.
+- **To change it:** the length scales with the series resistor
+  (R104–R106, R204–R206). For example, 4.7 kΩ roughly halves it.
+- **Saved:** about 650 mm² of board and six through-hole parts, and
+  nothing needs adjusting.
+
 ### Outputs and turnout direction
 
 Each 2-pin terminal carries `DRVn-0` / `DRVn-1`. A Kato coil moves one
@@ -327,13 +354,20 @@ No layout yet, so this is an estimate.
   - the S3Bat socket area, 18 × 30 mm with clearance around it: about
     700 mm²;
   - the buck converter, fuse and diode: about 300 mm².
-- **Total:** about 5,000 mm², so roughly **80 × 60 mm** (or 90 × 55 mm).
-- **Where the area goes:** the six 3386P trimmers (9.5 × 9.5 mm each) and
-  the four DRV8313s with their capacitors take most of it. SMD trimmers
-  would shrink the board noticeably.
-- **Edges:** the six 2-pin output terminals fit along one edge
-  (6 × 5.08 mm ≈ 31 mm), with the 5.08 mm power terminal (about 10 mm)
-  beside them. The S3Bat sits on another edge, with USB-C facing out.
+- **Minus the trimmers:** the six 3386P trimmers (9.5 × 9.5 mm each) are
+  gone, saving about 650 mm².
+- **Total:** about 4,350 mm², so roughly **70 × 60 mm**. The four
+  DRV8313s with their capacitors now take the most room.
+- **Edges:** the six 2-pin output terminals butt together along one
+  edge, 12 positions × 2.54 mm ≈ 31 mm, with the 5.08 mm power terminal
+  (about 10 mm) beside them.
+  - A single 12-way block (KF128-2.54-12P, C474929) is the same 31 mm
+    long, so it saves no space, and JLC had only 28 in stock on
+    2026-09-28.
+  - Two 6-way blocks (KF128-2.54-6P, C474924, about 1.6k in stock) are
+    also the same length.
+  - The 2-pin blocks stay: best stock, and each turnout keeps its own
+    block. The S3Bat sits on another edge, with USB-C facing out.
 - **Cost:** it stays well under JLCPCB's 100 × 100 mm price tier. Two
   layers should be enough.
 
@@ -352,13 +386,8 @@ No layout yet, so this is an estimate.
    - Input: 2 × 10 µF + 100 nF.
    - Bootstrap: 100 nF.
    - EN: pulled up to VIN through 100 kΩ (EN is rated to 19 V).
-3. **Kato coil figures** (current at 12 V) for trace sizing and pulse
-   length. The trimmer range (a few ms to about 5 s) is far longer than
-   Kato needs.
-4. **Trimmers at JLCPCB.** The 3386P is through-hole, so it needs JLC's
-   through-hole assembly (extra cost) or hand soldering. An SMD trimmer
-   of the same value is worth checking, and so is LCSC stock for every
-   part at order time.
+3. **Kato coil figures** (current at 12 V) for trace sizing.
+4. **LCSC stock:** check every part at order time.
 5. **Board outline and mounting:** size, mounting holes, whether it fits
    an enclosure.
 6. **HCT86:** on the schematic; confirm on the bench (see "Input
@@ -369,7 +398,7 @@ No layout yet, so this is an estimate.
 ## Considered, not chosen
 
 - **Firmware-timed pulses** (drive both half-bridges from GPIOs, no RC,
-  XOR or trimmers): needs 12 GPIOs for 6 turnouts and a firmware change,
+  XOR or delay parts): needs 12 GPIOs for 6 turnouts and a firmware change,
   and it throws away the GreenHat behaviour the firmware is built around.
   Keeping the GreenHat circuit means the board is a known design.
 

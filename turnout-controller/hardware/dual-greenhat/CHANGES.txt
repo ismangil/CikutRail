@@ -41,6 +41,9 @@ new files ("after" versions) are:
     capacitor 100 nF -> 10 nF, V3P3OUT capacitor 4.7 nF -> 470 nF;
     100 nF per VM pin plus 22 uF bulk per driver pair.
   - Logic GND and power GND are one net, joined on the board.
+  - Removed the 1 MOhm pulse-length trimmers R3/R4/R6. They were set fully
+    counter-clockwise (0 Ohm), so the pulse is fixed by the 10 kOhm series
+    resistor and the 10 uF capacitor.
   Documentation
   - New schematic generated for EasyEDA Standard (see above); no PCB
     layout or Gerbers yet. Those will be added here when made, together

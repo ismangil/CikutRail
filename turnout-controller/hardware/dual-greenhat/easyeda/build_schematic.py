@@ -37,7 +37,6 @@ CAT = {
     "R100K": ("C25741", "100k"),        # 0402, Basic
     "R18K": ("C25810", "18k"),          # 0603, Basic
     "R0": ("C17477", "0R"),             # 0805, Basic (5 V link)
-    "TRIM1M": ("C118946", "1M"),        # 3386P, through-hole
     "C100N": ("C307331", "100nF 50V"),  # 0402, Basic
     "C10N": ("C15195", "10nF 50V"),     # 0402, Basic
     "C470N": ("C47339", "470nF 10V"),   # 0402
@@ -104,8 +103,9 @@ def block_sheet(b, chans):
     for i, k in enumerate(chans):
         part(s, f"R{n+1+i}", "R10K", {1: "VCC5V", 2: f"CH{k}"})        # input pull-up
         part(s, f"C{n+1+i}", "C100N", {1: f"CH{k}", 2: "GND"})         # input filter
-        part(s, f"R{n+4+i}", "R10K", {1: f"CH{k}", 2: f"RC{k}"})       # RC delay
-        part(s, f"RV{n+1+i}", "TRIM1M", {1: f"RC{k}", 2: f"RD{k}", 3: f"RD{k}"})
+        # RC delay: 10k x 10uF sets the pulse length. The GreenHat's 1M
+        # trimmer is left out; it was set fully counter-clockwise (0 ohm).
+        part(s, f"R{n+4+i}", "R10K", {1: f"CH{k}", 2: f"RD{k}"})
         part(s, f"C{n+4+i}", "C10U", {1: f"RD{k}", 2: "GND"})
         a, bb, y = gates[i]
         xor_pins.update({a: f"RD{k}", bb: "GND", y: f"DL{k}"})         # XOR as buffer
