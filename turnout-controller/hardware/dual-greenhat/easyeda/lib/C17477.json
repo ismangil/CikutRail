@@ -1,0 +1,39 @@
+{
+ "result": {
+  "uuid": "c01451418699701ce89606f410089b9e",
+  "title": "0805W8F0000T5E",
+  "lcsc": "C17477",
+  "puuid": "b60f399a7a7e41848b2be1eb49c79141",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "5.8.20",
+    "c_para": {
+     "pre": "R?",
+     "name": "0805W8F0000T5E",
+     "package": "R0805",
+     "nameAlias": "Value",
+     "Supplier": "LCSC",
+     "Manufacturer": "UNI-ROYAL(厚声)",
+     "Manufacturer Part": "0805W8F0000T5E",
+     "Supplier Part": "C17477",
+     "Value": "0Ω",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "x": 20,
+    "y": 0,
+    "puuid": "b60f399a7a7e41848b2be1eb49c79141",
+    "uuid": "c01451418699701ce89606f410089b9e",
+    "utime": 1542401123,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "P~show~1~2~40~0~0~rep2~0^^40~0^^M 40 -0 h-10~#000000^^0~25~3~0~2~end~~~#000000^^0~35~-1~0~2~start~~~#000000^^0~33~0^^0~M 30 -3 L 27 0 L 30 3",
+    "P~show~1~1~0~0~180~rep3~0^^0~0^^M 0 -0 h10~#000000^^0~15~3~0~1~start~~~#000000^^0~5~-1~0~1~end~~~#000000^^0~7~0^^0~M 10 3 L 13 0 L 10 -3",
+    "R~10~-4~~~20~8~#880000~1~0~none~rep4~0"
+   ]
+  }
+ }
+}

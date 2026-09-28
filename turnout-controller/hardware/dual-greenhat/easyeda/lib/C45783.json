@@ -1,0 +1,42 @@
+{
+ "result": {
+  "uuid": "3eed98608c2542ad840aa25932b95975",
+  "title": "CL21A226MAQNNNE",
+  "lcsc": "C45783",
+  "puuid": "2ee8eb13a0124a108e622ce40c0c25a8",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "5.8.20",
+    "c_para": {
+     "name": "CL21A226MAQNNNE",
+     "package": "C0805",
+     "pre": "C?",
+     "nameAlias": "Value",
+     "Supplier": "LCSC",
+     "Manufacturer": "SAMSUNG(三星)",
+     "Manufacturer Part": "CL21A226MAQNNNE",
+     "Value": "22uF",
+     "Supplier Part": "C45783",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "x": 400,
+    "y": 300,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "puuid": "2ee8eb13a0124a108e622ce40c0c25a8",
+    "uuid": "3eed98608c2542ad840aa25932b95975",
+    "utime": 1542802303,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "PL~398 308 398 292~#A00000~1~0~none~gge2~0",
+    "P~show~0~1~380~300~180~gge3~0^^380~300^^M 390 300 h -10~#800^^0~394~300~0~1~start~~~#800^^0~386~296~0~1~end~~~#800^^0~367~300^^0~M 370 303 L 373 300 L 370 297",
+    "PL~410 300 402 300~#A00000~1~0~none~gge10~0",
+    "PL~402 292 402 308~#A00000~1~0~none~gge11~0",
+    "P~show~0~2~420~300~0~gge13~0^^420~300^^M 410 300 h 10~#800^^0~406~300~0~2~end~~~#800^^0~414~296~0~2~start~~~#800^^0~433~300^^0~M 430 297 L 427 300 L 430 303",
+    "PL~398 300 390 300~#A00000~1~0~none~gge21~0"
+   ]
+  }
+ }
+}

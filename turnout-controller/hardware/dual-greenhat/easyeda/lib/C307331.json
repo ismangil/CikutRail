@@ -1,0 +1,43 @@
+{
+ "result": {
+  "uuid": "90d0ec3862a946bb9c074e514ae2d050",
+  "title": "CL05B104KB54PNC",
+  "lcsc": "C307331",
+  "puuid": "0821ed6ea50c44f4909e4be7610e4198",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "6.4.25",
+    "x": 400,
+    "y": 300,
+    "c_para": {
+     "pre": "C?",
+     "name": "CL05B104KB54PNC",
+     "package": "C0402",
+     "nameAlias": "Value",
+     "Contributor": "LCSC",
+     "Supplier": "LCSC",
+     "Supplier Part": "C307331",
+     "Manufacturer": "SAMSUNG(三星)",
+     "Manufacturer Part": "CL05B104KB54PNC",
+     "Value": "100nF",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "puuid": "0821ed6ea50c44f4909e4be7610e4198",
+    "utime": 1633997165,
+    "uuid": "90d0ec3862a946bb9c074e514ae2d050",
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "PL~398 292 398 308~#A00000~1~0~none~gge3~0",
+    "P~show~0~1~380~300~180~gge4~0^^380~300^^M 390 300 h -10~#800^^0~394~300~0~1~start~~~#800^^0~386~296~0~1~end~~~#800^^0~367~300^^0~M 370 297 L 373 300 L 370 303",
+    "PL~410 300 402 300~#A00000~1~0~none~gge11~0",
+    "PL~402 308 402 292~#A00000~1~0~none~gge12~0",
+    "P~show~0~2~420~300~0~gge13~0^^420~300^^M 410 300 h 10~#800^^0~406~300~0~2~end~~~#800^^0~414~296~0~2~start~~~#800^^0~433~300^^0~M 430 303 L 427 300 L 430 297",
+    "PL~398 300 390 300~#A00000~1~0~none~gge20~0"
+   ]
+  }
+ }
+}

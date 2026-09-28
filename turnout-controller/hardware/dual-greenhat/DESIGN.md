@@ -1,6 +1,7 @@
 # Dual-GreenHat carrier board: design note
 
-Status: **exploring**. Nothing drawn yet.
+Status: **schematic started**. The first EasyEDA schematic is generated in
+[easyeda/](easyeda/); no PCB layout yet.
 
 One PCB that the Stamp-S3Bat plugs into, carrying two copies of IoTT's
 GreenHat Coil Driver circuit: six turnout channels for this layout's six
@@ -21,6 +22,7 @@ The firmware doesn't change. The board uses channels 1–6 (G1–G6); channels
 | S3Bat mounting | **Stamp-S3Bat DIP** (S015-DIP, headers pre-soldered) in two 1×9 female 2.54 mm headers, S3Bat removable |
 | Power supply | **Fixed 12 V**: Pro-Elec PEL01531 adapter, 12.0 V, 5 A, regulated. No wide input range |
 | Power input | One 5.08 mm 2-pin screw terminal, as on the GreenHat (KF128L-5.08-2P, LCSC C474940). It powers the coils *and* the S3Bat |
+| Input fuse | **PTC resettable fuse**, SMD1812P200TF16 (LCSC C20812): 2 A hold, 4 A trip, 16 V |
 | Reverse polarity | One **SS34** Schottky in series (LCSC C8678, JLC Basic), replacing the GreenHat's Q1/D7/R7 |
 | Node power | 12 V → 5 V buck feeding the S3Bat's **5VIN** pin: **TI TPS563201DDCR** (LCSC C116592) |
 | Turnout outputs | Small 2.54 mm screw terminals, **2 pins per turnout** (the GreenHat's KF128-2.54 family, 2-pin instead of 4-pin) |
@@ -140,9 +142,13 @@ Shared parts per GreenHat:
 | Block | GreenHat ×2 | This board |
 |---|---|---|
 | DRV8313 | 4 | 4 (unchanged) |
-| 74HC86 | 2 | 2 (6 gates used, 2 spare). Consider **74HCT86**, see below |
+| 74HC86 | 2 | 2 × **74HCT86D** (LCSC C6005), 6 gates used, 2 spare. See below |
 | RC delay + 1 MΩ trimmer | 6 | 6 (unchanged) |
-| Input pull-up + 100 nF | 6 | 6. Pull-up rail: see below |
+| Input pull-up + 100 nF | 6 | 6. Pull-ups stay on 5 V; 10 kΩ (Basic part) instead of 10.2 kΩ |
+| RC delay's series resistor | 10.2 kΩ | 10 kΩ (Basic part); the trimmer sets the pulse length anyway |
+| DRV8313 charge-pump cap (CP1–CP2) | 100 nF | **10 nF**, as the DRV8313 datasheet specifies |
+| DRV8313 V3P3OUT cap | 4.7 nF | **470 nF**, as the DRV8313 datasheet specifies |
+| DRV8313 VM decoupling | 100 nF per chip pair | 100 nF per VM pin, plus 22 µF bulk per block |
 | Steering diodes D1–D6 | 12 | **none** |
 | Output terminals | 6 × 4-pin | **6 × 2-pin** |
 | Power terminal + Q1/D7/R7 | 2 sets | **1 terminal + 1 SS34 diode**; Q1/D7/R7 dropped |
@@ -174,8 +180,9 @@ A new board can fix this cheaply:
    reset. The S3Bat's 3V3 is on its right-row pin 2 and is up whenever
    the ESP32 runs, so it's up whenever 5VOUT is.
 
-Do option 1 first; both need a quick check on the bench (a GreenHat with
-its U3 swapped would do).
+**On the schematic:** option 1 (74HCT86D). The pull-ups stay on 5 V, as
+on the GreenHat. A quick bench check on a GreenHat with its U3 swapped for
+an HCT86 would still be worthwhile before ordering.
 
 ### Power supply: fixed 12 V
 
@@ -271,10 +278,18 @@ What changes in behaviour:
   for one coil's peak current plus margin.
 - Bulk capacitance on VM near each DRV8313, as on the GreenHat (100 nF
   per VM pin), plus one bulk electrolytic or ceramic (25 V) at the input.
-- **Optional fuse:** a 60 W adapter can push 5 A into a wiring fault
-  before its own protection trips. A resettable PTC fuse (about 2 A
-  hold) at the input would protect the board's traces. It's worth one
-  part; decide during layout.
+- **Input fuse (included):** a 60 W adapter can push 5 A into a wiring
+  fault before its own protection trips, so a resettable PTC fuse sits
+  between the screw terminal and the SS34.
+  - **Part:** SMD1812P200TF16, LCSC **C20812** (RUILON, 1812). It holds
+    2 A, trips at 4 A and is rated 16 V. About 30k were in stock on
+    2026-09-28, at $0.11 each.
+  - **Why this one:** many 2 A 1812 PTCs are rated only 8 V, too low for
+    12 V.
+  - **Pulses don't trip it:** a millisecond coil pulse of 1–2.5 A is well
+    inside the hold rating, so only a sustained fault trips it. It
+    resets once the fault is gone and it cools.
+  - **Drop:** about 0.1 Ω, under 0.1 V at the node's idle current.
 
 ### Outputs and turnout direction
 
@@ -304,9 +319,14 @@ All six are on the S3Bat's **left** row, together with 5VOUT and GND
    the layout 1:1 and set the module on it to confirm pin 1, the
    orientation (USB-C end) and that the pins fit the chosen female
    headers.
-2. **Buck converter passives** (inductor, feedback divider, caps): take
-   them from the TPS563201 datasheet's 5 V table when drawing the
-   schematic.
+2. **Buck converter passives:** chosen from the TPS563201 datasheet
+   (table 7-2, 5 V row).
+   - Inductor: 3.3 µH Sunlord SWPA4030S3R3MT (C15269, 2.4 A).
+   - Output: 2 × 22 µF.
+   - Feedback divider: 100 kΩ / 18 kΩ (5.03 V), both Basic parts.
+   - Input: 2 × 10 µF + 100 nF.
+   - Bootstrap: 100 nF.
+   - EN: pulled up to VIN through 100 kΩ (EN is rated to 19 V).
 3. **Kato coil figures** (current at 12 V) for trace sizing and pulse
    length. The trimmer range (a few ms to about 5 s) is far longer than
    Kato needs.
@@ -316,10 +336,10 @@ All six are on the S3Bat's **left** row, together with 5VOUT and GND
    part at order time.
 5. **Board outline and mounting:** size, mounting holes, whether it fits
    an enclosure.
-6. **HCT86 / 3V3 pull-up change** (above): confirm on the bench before
-   committing to it.
-7. **Input fuse** (PTC, about 2 A hold): include it or not (see "Coil
-   power").
+6. **HCT86:** on the schematic; confirm on the bench (see "Input
+   levels").
+7. **74HCT86D stock:** only about 1k at LCSC (C6005) on 2026-09-28. That's
+   fine for a small batch, but check at order time.
 
 ## Considered, not chosen
 
@@ -328,13 +348,45 @@ All six are on the S3Bat's **left** row, together with 5VOUT and GND
   and it throws away the GreenHat behaviour the firmware is built around.
   Keeping the GreenHat circuit means the board is a known design.
 
+## Schematic (EasyEDA)
+
+The schematic is generated from a script instead of drawn by hand, so the
+circuit lives in one reviewable place:
+
+- [easyeda/build_schematic.py](easyeda/build_schematic.py) defines every
+  part (by LCSC number) and every pin's net. It writes:
+  - `DualGreenHat_schematic.json`: the EasyEDA Standard source;
+  - `netlist.txt`: each net and its pins, for review;
+  - `bom.csv`: a JLCPCB-style BOM.
+- `easyeda/lib/` caches each part's EasyEDA symbol, fetched from EasyEDA's
+  LCSC library, so the build runs offline.
+- Every connected pin gets a net label; there are no drawn wires. It's
+  plain to read and easy to diff, but less pictorial than IoTT's hand-drawn
+  sheets. Tidy it by hand in EasyEDA if you like, but then treat the
+  EasyEDA copy as the master and stop regenerating.
+- Sheets: **Power and S3Bat** (terminal, fuse, SS34, buck, sockets),
+  **Channels 1-3** and **Channels 4-6** (one GreenHat circuit each).
+- Designators: block 1 uses the 100s (U101 is the XOR, U102/U103 the
+  drivers), block 2 the 200s, and the power sheet 1–9. Terminals are
+  T1–T6, matching the channel numbers.
+- Checked in EasyEDA Standard: loading a sheet built the same way,
+  EasyEDA matched every part to its LCSC library entry (footprint and
+  supplier part), and every net label landed on a pin.
+
+To open it: in EasyEDA Standard, **File > Open > EasyEDA Source** and pick
+`DualGreenHat_schematic.json`. EasyEDA Pro imports the same file (File >
+Import > EasyEDA Standard). After a change to `build_schematic.py`:
+
+```
+python build_schematic.py
+```
+
 ## Next steps
 
-1. Take the TPS563201's inductor, feedback divider and caps from its
-   datasheet's 5 V table.
-2. In EasyEDA: import the GreenHat schematic, duplicate it into blocks
-   A and B, then apply the changes in the table above.
-3. Pick parts from LCSC (basic parts where possible) and check stock.
-4. Lay out the board: power path and GND join first, then the drivers,
-   the headers and terminals.
-5. Order a small batch; bench-test against PHASE1_BENCH.md.
+1. Open the schematic in EasyEDA and review it against `netlist.txt`.
+2. Convert it to a PCB. Set the S3Bat sockets J2/J3 15.24 mm apart, with
+   J2 (G1–G7) on the left when the USB-C end faces you.
+3. Lay out the board: power path and GND join first, then the drivers,
+   the headers and terminals. Keep the buck and copper pour away from
+   the module's antenna.
+4. Order a small batch; bench-test against PHASE1_BENCH.md.

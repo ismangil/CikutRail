@@ -1,0 +1,39 @@
+{
+ "result": {
+  "uuid": "0eedab92e7aafdde01ddc57928d2356c",
+  "title": "SS34_C8678",
+  "lcsc": "C8678",
+  "puuid": "b7243d11a5f04fb7894887aaa3569585",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "6.5.23",
+    "c_para": {
+     "pre": "D?",
+     "name": "SS34_C8678",
+     "package": "SMA_L4.3-W2.6-LS5.2-RD",
+     "Supplier": "LCSC",
+     "Manufacturer Part": "SS34",
+     "Manufacturer": "MDD(辰达半导体)",
+     "Supplier Part": "C8678",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "x": 0,
+    "y": 0,
+    "puuid": "b7243d11a5f04fb7894887aaa3569585",
+    "uuid": "0eedab92e7aafdde01ddc57928d2356c",
+    "utime": 1673006327,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "P~show~0~2~20~0~0~gge2~0^^20~0^^M 20 0 h -15~#880000^^0~2~3~0~A~end~~~#0000FF^^0~11~-1~0~2~start~~~#0000FF^^0~8~0^^0~M 5 -3 L 2 0 L 5 3",
+    "P~show~0~1~-20~0~180~gge9~0^^-20~0^^M -20 0 h 15~#880000^^0~-2~3~0~K~start~~~#0000FF^^0~-11~-1~0~1~end~~~#0000FF^^0~-8~0^^0~M -5 3 L -2 0 L -5 -3",
+    "PT~M 5 -6 L -5 0 L 5 7 Z~#880000~1~0~none~gge19~0~",
+    "PL~-5 0 -5 8 -3 8 -3 7~#880000~1~0~none~gge24~0",
+    "PL~-5 0 -5 -8 -7 -8 -7 -7~#880000~1~0~none~gge26~0"
+   ]
+  }
+ }
+}

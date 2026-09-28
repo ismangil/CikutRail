@@ -1,0 +1,42 @@
+{
+ "result": {
+  "uuid": "03ff720a3dd956c1e3d524911926f0ea",
+  "title": "SWPA4030S3R3MT",
+  "lcsc": "C15269",
+  "puuid": "b5fcb35866e64d4e884be8c12e0e5c76",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "6.3.8",
+    "c_para": {
+     "pre": "L?",
+     "name": "SWPA4030S3R3MT",
+     "package": "IND-SMD_L4.0-W4.0_SMNR4012",
+     "nameAlias": "Value",
+     "Supplier": "LCSC",
+     "Manufacturer": "Sunlord(顺络)",
+     "Manufacturer Part": "SWPA4030S3R3MT",
+     "Value": "3.3uH",
+     "Supplier Part": "C15269",
+     "JLCPCB Part Class": "Extended Part"
+    },
+    "x": 0,
+    "y": 0,
+    "puuid": "b5fcb35866e64d4e884be8c12e0e5c76",
+    "uuid": "03ff720a3dd956c1e3d524911926f0ea",
+    "utime": 1573315175,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "P~show~0~2~20~0~0~gge2~0^^20~0^^M 20 0 h -3~#800^^0~13~0~0~2~end~~~#800^^0~21~-4~0~2~start~~~#800^^0~20~0^^0~M 17 -3 L 14 0 L 17 3",
+    "P~show~0~1~-20~0~180~gge9~0^^-20~0^^M -20 0 h 3~#800^^0~-13~0~0~1~start~~~#800^^0~-21~-4~0~1~end~~~#800^^0~-20~0^^0~M -17 3 L -14 0 L -17 -3",
+    "A~M -16.88 -0.07 A 4 3.9 0 1 1 -8.92 -0.06~~#880000~1~0~none~gge18~0",
+    "A~M -8.4 -0.07 A 4 3.9 0 1 1 -0.44 -0.07~~#880000~1~0~none~gge19~0",
+    "A~M 0.07 -0.07 A 4 3.9 0 1 1 8.03 -0.07~~#880000~1~0~none~gge20~0",
+    "A~M 8.7 -0.07 A 4 3.9 0 1 1 16.67 -0.06~~#880000~1~0~none~gge21~0"
+   ]
+  }
+ }
+}

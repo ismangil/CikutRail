@@ -1,0 +1,39 @@
+{
+ "result": {
+  "uuid": "c453d24bfba5456fb5149a0715318192",
+  "title": "KF128-2.54-2P",
+  "lcsc": "C474920",
+  "puuid": "95324b5536ab40508824fc3f5a9cd364",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "6.3.22",
+    "x": 400,
+    "y": 300,
+    "c_para": {
+     "pre": "U?",
+     "name": "KF128-2.54-2P",
+     "package": "CONN-TH_P2.54_KF128-2.54-2P",
+     "Contributor": "LCSC",
+     "Supplier": "LCSC",
+     "Supplier Part": "C474920",
+     "Manufacturer": "KEFA(科发)",
+     "Manufacturer Part": "KF128-2.54-2P",
+     "JLCPCB Part Class": "Extended Part"
+    },
+    "uuid": "c453d24bfba5456fb5149a0715318192",
+    "puuid": "95324b5536ab40508824fc3f5a9cd364",
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true,
+    "utime": 1582508944
+   },
+   "shape": [
+    "R~390~285~2~2~20~30~#880000~1~0~none~gge1~0~",
+    "E~395~290~1.5~1.5~#880000~1~0~#880000~gge2~0",
+    "P~show~0~1~380~295~180~gge5~0^^380~295^^M380,295h10~#880000^^1~393.7~299~0~1~start~~~#0000FF^^1~389.5~294~0~1~end~~~#0000FF^^0~387~295^^0~M 390 298 L 393 295 L 390 292",
+    "P~show~0~2~380~305~180~gge6~0^^380~305^^M380,305h10~#880000^^1~393.7~309~0~2~start~~~#0000FF^^1~389.5~304~0~2~end~~~#0000FF^^0~387~305^^0~M 390 308 L 393 305 L 390 302"
+   ]
+  }
+ }
+}
