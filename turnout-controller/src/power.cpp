@@ -16,6 +16,9 @@ bool g_available = false;
 }  // namespace
 
 bool begin() {
+  // Warnings and errors only: at info level the library logs every LED
+  // colour change, twice a second while the LED blinks.
+  M5PM1::setLogLevel(M5PM1_LOG_LEVEL_WARN);
   g_available = g_pm1.begin(&Wire, M5PM1_DEFAULT_ADDR, kSdaPin, kSclPin, M5PM1_I2C_FREQ_100K) == M5PM1_OK;
   return g_available;
 }
