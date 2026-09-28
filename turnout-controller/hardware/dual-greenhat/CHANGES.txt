@@ -1,0 +1,47 @@
+CHANGES to the IoTT GreenHat Coil Driver rev 1.0
+================================================
+
+Upstream: IoTT GreenHat Coil Driver, rev 1.0, Hans R. Tanner (IoTT),
+2021-07-11 / 2021-08-27, from tanner87661/IoTTStick,
+"Hat Devices/GreenHat Power Extension" (copy in upstream/).
+
+Derived design: CikutRail dual-GreenHat carrier board, a Stamp-S3Bat DIP
+carrier with six turnout channels for Kato Unitrack turnouts.
+
+These modifications are licensed under the TAPR Open Hardware License
+(www.tapr.org/OHL).
+
+The upstream files are unchanged ("before" versions, in upstream/). The
+new files ("after" versions) are:
+  DESIGN.md                            design note and rationale
+  easyeda/build_schematic.py           generator for the schematic
+  easyeda/DualGreenHat_schematic.json  EasyEDA Standard schematic source
+  easyeda/netlist.txt                  netlist (ASCII)
+  easyeda/bom.csv                      bill of materials (ASCII)
+  easyeda/lib/*.json                   EasyEDA/LCSC library symbols used
+
+2026-09-28  Perry Ismangil
+  Circuit
+  - Two copies of the GreenHat circuit on one board: six channels.
+  - Removed the steering diodes D1-D6 and output terminal pins 3-4
+    (twin-coil turnouts). Each output is a 2-pin terminal (KF128-2.54-2P)
+    for a two-wire Kato coil.
+  - Removed the input headers J1-J3. The inputs are routed to a socket
+    for an M5Stack Stamp-S3Bat DIP (G1-G6).
+  - Removed the H7350 LDO and J6. The 5 V logic rail comes from the
+    S3Bat's switched 5VOUT.
+  - Replaced the reverse-polarity circuit (Q1 SI2301CDS, D7, R7) with one
+    SS34 Schottky diode, and added a 2 A PTC resettable fuse at the input.
+    The design assumes a fixed, regulated 12 V supply.
+  - Added a TPS563201 12 V -> 5 V buck converter feeding the S3Bat's 5VIN,
+    so one terminal powers everything.
+  - 74HC86 -> 74HCT86 (valid logic levels from 3.3 V GPIOs).
+  - 10.2 kOhm -> 10 kOhm for the input pull-ups and RC series resistors.
+  - DRV8313 support parts changed to the TI datasheet values: charge-pump
+    capacitor 100 nF -> 10 nF, V3P3OUT capacitor 4.7 nF -> 470 nF;
+    100 nF per VM pin plus 22 uF bulk per driver pair.
+  - Logic GND and power GND are one net, joined on the board.
+  Documentation
+  - New schematic generated for EasyEDA Standard (see above); no PCB
+    layout or Gerbers yet. Those will be added here when made, together
+    with PDF exports of the schematic.

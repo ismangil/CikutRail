@@ -20,4 +20,7 @@ its own folder.
 
 ## License
 
-[AGPL-3.0](LICENSE)
+[AGPL-3.0](LICENSE), except the hardware design in
+[`turnout-controller/hardware/dual-greenhat/`](turnout-controller/hardware/dual-greenhat/),
+which is derived from IoTT's GreenHat and is under the
+[TAPR Open Hardware License v1.0](turnout-controller/hardware/dual-greenhat/LICENSE.md).

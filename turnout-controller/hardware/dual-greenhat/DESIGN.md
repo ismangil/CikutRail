@@ -41,8 +41,11 @@ repo under `Hat Devices/GreenHat Power Extension/`:
 
 **License:** the GreenHat is published under the TAPR Open Hardware
 License v1.0. This board is a derivative, so its design files go out under
-TAPR OHL v1.0 too (not the repo's AGPL), with credit to IoTT. Add the
-license file to this folder with the first design files.
+TAPR OHL v1.0 too (not the repo's AGPL), with credit to IoTT. See
+[LICENSE.md](LICENSE.md): the license text, the unchanged upstream files
+(`upstream/`) and the list of modifications ([CHANGES.txt](CHANGES.txt))
+are in this folder, as the OHL requires. Update CHANGES.txt with each
+design change, and add Gerbers and schematic PDFs here once they exist.
 
 ## The Stamp-S3Bat DIP socket
 
@@ -311,6 +314,28 @@ pins on the silkscreen consistently, e.g. `1A/1B` … `6A/6B`.
 
 All six are on the S3Bat's **left** row, together with 5VOUT and GND
 (see "The Stamp-S3Bat DIP socket").
+
+## Board size (estimate)
+
+No layout yet, so this is an estimate.
+
+- **Calibration:** IoTT's GreenHat board, from its Gerber outline, is
+  **52 × 45 mm** (about 2,360 mm²) for three channels.
+- **This board has:**
+  - two GreenHat circuits, minus the steering diodes, input headers, LDO
+    and one of the two power-input circuits: about 4,000 mm²;
+  - the S3Bat socket area, 18 × 30 mm with clearance around it: about
+    700 mm²;
+  - the buck converter, fuse and diode: about 300 mm².
+- **Total:** about 5,000 mm², so roughly **80 × 60 mm** (or 90 × 55 mm).
+- **Where the area goes:** the six 3386P trimmers (9.5 × 9.5 mm each) and
+  the four DRV8313s with their capacitors take most of it. SMD trimmers
+  would shrink the board noticeably.
+- **Edges:** the six 2-pin output terminals fit along one edge
+  (6 × 5.08 mm ≈ 31 mm), with the 5.08 mm power terminal (about 10 mm)
+  beside them. The S3Bat sits on another edge, with USB-C facing out.
+- **Cost:** it stays well under JLCPCB's 100 × 100 mm price tier. Two
+  layers should be enough.
 
 ## Open questions
 
