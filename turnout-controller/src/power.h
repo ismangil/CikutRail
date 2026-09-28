@@ -26,6 +26,7 @@ struct Buttons {
   bool singleClickResetDisabled;
   bool doubleClickOffDisabled;
   bool pressedSinceLastRead;
+  bool downloadLocked;
 };
 bool readButtons(Buttons* buttons);
 
@@ -36,11 +37,15 @@ bool setLed(uint8_t r, uint8_t g, uint8_t b);
 // Button held down right now.
 bool buttonPressed(bool* pressed);
 
-// Stops the button from cutting the node's power: no double-click power
-// off and no single-click reset. On this board the single-click "reset"
-// is a power cycle, and it only acts once double-click power off is
-// disabled (phase 5 bench), so both go off together.
-bool disableButtonPowerActions();
+// Stops the PM1 acting on the button itself, so the firmware's long
+// press is its only action (phase 5 bench):
+// - no double-click power off;
+// - no single-click reset: on this board a power cycle, and it only acts
+//   once double-click power off is disabled;
+// - no download mode on a held button (DL_LOCK), which stops the
+//   firmware; the lock lasts until a power cut, so it is set every boot.
+//   USB flashing doesn't use it.
+bool disableButtonActions();
 
 // PM1 watchdog: resets the node if not fed within the timeout. 0 = off.
 bool watchdogSet(uint8_t seconds);

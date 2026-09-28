@@ -197,10 +197,11 @@ the ESP32's Wi-Fi peaks.
 
 - RGB LED (status; PM1 GPIO0 as NeoPixel, see PHASE5_BENCH.md for the
   colours)
-- User button: single-click reset and double-click power off are PM1
-  defaults; the firmware disables both (the single-click "reset" is a
-  power cycle, which pulses turnouts). Long press (3 s) = open the setup
-  access point. A single-click reset
+- User button: single-click reset, double-click power off and download
+  mode on a held button are PM1 defaults; the firmware disables all
+  three (the single-click "reset" is a power cycle, which pulses
+  turnouts; download mode stops the firmware). Long press (3 s) = open
+  the setup access point. A single-click reset
   makes THROWN turnouts pulse (see above); the config page can disable it.
   **On the phase 1 bench, a single click on USB power did not reset the
   ESP32**, although the PM1 reported single-click reset enabled and saw

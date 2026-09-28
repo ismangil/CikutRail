@@ -19,6 +19,11 @@ Phase 5 adds the node's health signals, all through the PM1:
   startup, so the button can't cut the node's power (a power cut fires a
   THROWN pulse on CLOSED turnouts). On 0.5.0, with only double-click off
   disabled, a single click power-cycled the node; 0.5.1 disables both.
+  Holding the button made the PM1 put the ESP32 into download mode
+  (firmware stopped, pins undriven) before the 3 s long press fired;
+  0.5.2 also sets the PM1's download-mode lock at every boot (it clears
+  only on a power cut). USB flashing doesn't use the PM1, so it still
+  works.
 - **PM1 watchdog**: **off by default**. The PM1 resets the node if it
   isn't fed in time, and a reset can make turnouts pulse, so it stays off
   until the bench shows what its reset does. At startup the firmware turns
@@ -45,8 +50,8 @@ As in phase 4. Keep the node's console open (one reader only).
    the setup access point`, the LED blinks blue. Note anything else the
    PM1 does while it is held (a reset would show in `boot`). `portal off`.
 5. **Double-click.** Double-click the button: the node stays on.
-   `pm1 btn` shows `single-click reset: disabled` and `double-click power
-   off: disabled`.
+   `pm1 btn` shows `single-click reset: disabled`, `double-click power
+   off: disabled` and `download mode on a held button: locked`.
 6. **Watchdog off.** `wdt`: `off`, PM1 count 0.
 7. **Watchdog fed.** `wdt 10`, wait 30 s: no reset (`boot` unchanged),
    `wdt` shows the count staying near 10. `wdt off`.

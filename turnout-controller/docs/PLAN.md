@@ -63,7 +63,8 @@ in [WIRING.md](WIRING.md)):
   power off. On the phase 1 bench a single click did nothing, but once
   phase 5 disabled double-click power off, a single click power-cycled
   the node (turnouts pulsed, then were restored). So the firmware turns
-  both off; the button's only action is the 3 s long press.
+  both off, and locks the PM1's download mode (a held button otherwise
+  stops the firmware); the button's only action is the 3 s long press.
 
 ## Hardware summary
 
