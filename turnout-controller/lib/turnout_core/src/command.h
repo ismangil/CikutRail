@@ -23,11 +23,18 @@ enum class CommandType : uint8_t {
   NetForget,  // net forget
   Portal,     // portal [on|off]
   Config,     // config [startup|offline|stagger|interval <value>]
+  Watchdog,   // wdt [off | <seconds> | hang]
 };
 
 enum class ResetKind : uint8_t { Soft, Panic, Watchdog };
 
 enum class ConfigKey : uint8_t { Show, Startup, Offline, Stagger, Interval };
+
+enum class WatchdogAction : uint8_t { Show, Off, Set, Hang };
+
+// PM1 watchdog timeout range for "wdt <seconds>".
+const uint32_t kMinWatchdogS = 5;
+const uint32_t kMaxWatchdogS = 255;
 
 // Bench limits for "cycle", so a mistyped command can't cook a snap coil.
 const uint32_t kCycleMaxCount = 100;
@@ -47,6 +54,8 @@ struct Command {
   bool fiveVoltOffFirst = false;  // Reset: turn 5VOUT off before resetting
   ConfigKey configKey = ConfigKey::Show;
   uint32_t configValue = 0;       // Config: ms, or 0/1 for startup (restore/low) and offline (hold/low)
+  WatchdogAction watchdog = WatchdogAction::Show;
+  uint32_t watchdogS = 0;         // Watchdog Set: timeout in seconds
 };
 
 struct ParseResult {

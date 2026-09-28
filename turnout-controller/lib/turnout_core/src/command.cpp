@@ -203,6 +203,22 @@ ParseResult parseCommand(const char* line) {
   if (equalsIgnoreCase(verb, "hold")) return parseSwitch(CommandType::Hold, tokens, count);
   if (equalsIgnoreCase(verb, "portal")) return parseSwitch(CommandType::Portal, tokens, count);
 
+  if (equalsIgnoreCase(verb, "wdt")) {
+    command.type = CommandType::Watchdog;
+    if (count == 1) return succeed(command);
+    if (count != 2) return fail("usage: wdt [off | <5-255 seconds> | hang]");
+    if (equalsIgnoreCase(tokens[1], "off")) {
+      command.watchdog = WatchdogAction::Off;
+    } else if (equalsIgnoreCase(tokens[1], "hang")) {
+      command.watchdog = WatchdogAction::Hang;
+    } else if (parseNumber(tokens[1], kMaxWatchdogS, &command.watchdogS) && command.watchdogS >= kMinWatchdogS) {
+      command.watchdog = WatchdogAction::Set;
+    } else {
+      return fail("usage: wdt [off | <5-255 seconds> | hang]");
+    }
+    return succeed(command);
+  }
+
   if (equalsIgnoreCase(verb, "config")) {
     command.type = CommandType::Config;
     if (count == 1) return succeed(command);

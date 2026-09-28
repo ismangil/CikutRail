@@ -299,6 +299,10 @@ const tc::NetConfig& config() { return g_config; }
 
 bool mqttUp() { return g_mqttUp; }
 
+bool wifiUp() { return WiFi.status() == WL_CONNECTED; }
+
+bool isOff() { return !g_haveConfig; }
+
 void onPortalOpened(bool wifiFailed) {
   if (!wifiFailed) return;
   // Stop the radio hopping channels in the background; loop() retries

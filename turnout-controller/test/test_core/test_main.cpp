@@ -5,6 +5,7 @@
 #include "behaviour.h"
 #include "channels.h"
 #include "command.h"
+#include "health.h"
 #include "jmri_protocol.h"
 #include "level_snapshot.h"
 #include "net_config.h"
@@ -716,6 +717,87 @@ void test_admin_password_rules() {
   TEST_ASSERT_FALSE(validAdminPassword(tooLong));
 }
 
+
+// --- health: LED and button ---
+
+HealthInputs healthy() {
+  HealthInputs in = {false, false, true, true, false};
+  return in;
+}
+
+void test_led_state_priorities() {
+  HealthInputs in = healthy();
+  TEST_ASSERT_TRUE(ledStateFor(in) == LedState::Ok);
+  in.jmriOffline = true;
+  TEST_ASSERT_TRUE(ledStateFor(in) == LedState::JmriOffline);
+  in.mqttUp = false;
+  TEST_ASSERT_TRUE(ledStateFor(in) == LedState::Connecting);  // connecting outranks JMRI offline
+  in.netOff = true;
+  TEST_ASSERT_TRUE(ledStateFor(in) == LedState::Error);
+  in.portalOpen = true;
+  TEST_ASSERT_TRUE(ledStateFor(in) == LedState::Setup);  // setup outranks everything
+  in = healthy();
+  in.wifiUp = false;
+  TEST_ASSERT_TRUE(ledStateFor(in) == LedState::Connecting);
+}
+
+void test_led_colours_and_blinking() {
+  const Rgb off = {0, 0, 0};
+  const Rgb green = {0, kLedLevel, 0};
+  TEST_ASSERT_TRUE(ledColour(LedState::Ok, 0) == green);
+  TEST_ASSERT_TRUE(ledColour(LedState::Ok, 12345) == green);
+  const Rgb yellow = {kLedLevel, kLedLevel, 0};
+  TEST_ASSERT_TRUE(ledColour(LedState::Connecting, 777) == yellow);
+  const Rgb blue = {0, 0, kLedLevel};
+  TEST_ASSERT_TRUE(ledColour(LedState::Setup, 0) == blue);
+  TEST_ASSERT_TRUE(ledColour(LedState::Setup, 499) == blue);
+  TEST_ASSERT_TRUE(ledColour(LedState::Setup, 500) == off);
+  TEST_ASSERT_TRUE(ledColour(LedState::Setup, 1000) == blue);
+  const Rgb red = {kLedLevel, 0, 0};
+  TEST_ASSERT_TRUE(ledColour(LedState::Error, 0) == red);
+  TEST_ASSERT_TRUE(ledColour(LedState::Error, 600) == off);
+  TEST_ASSERT_TRUE(ledColour(LedState::JmriOffline, 999) == green);
+  TEST_ASSERT_TRUE(ledColour(LedState::JmriOffline, 1000) == off);
+  TEST_ASSERT_TRUE(ledColour(LedState::JmriOffline, 2000) == green);
+  TEST_ASSERT_TRUE(ledColour(LedState::Ok, 0) != off);
+}
+
+void test_button_tracker() {
+  ButtonTracker button(3000);
+  typedef ButtonTracker::Event E;
+  TEST_ASSERT_TRUE(button.update(false, 0) == E::None);
+  TEST_ASSERT_TRUE(button.update(true, 100) == E::Pressed);
+  TEST_ASSERT_TRUE(button.update(true, 3099) == E::None);
+  TEST_ASSERT_TRUE(button.update(true, 3100) == E::LongPress);
+  TEST_ASSERT_TRUE(button.update(true, 9000) == E::None);  // fires once
+  TEST_ASSERT_TRUE(button.update(false, 9100) == E::Released);
+  TEST_ASSERT_EQUAL_UINT32(9000, button.lastHeldMs());
+  // A short press: pressed and released, no long press.
+  TEST_ASSERT_TRUE(button.update(true, 10000) == E::Pressed);
+  TEST_ASSERT_TRUE(button.update(false, 10250) == E::Released);
+  TEST_ASSERT_EQUAL_UINT32(250, button.lastHeldMs());
+  // Across a millis() wrap.
+  TEST_ASSERT_TRUE(button.update(true, 0xFFFFFF00u) == E::Pressed);
+  TEST_ASSERT_TRUE(button.update(true, 3000) == E::LongPress);
+}
+
+void test_watchdog_commands() {
+  ParseResult r = parseCommand("wdt");
+  TEST_ASSERT_TRUE(r.ok && r.command.type == CommandType::Watchdog && r.command.watchdog == WatchdogAction::Show);
+  r = parseCommand("wdt OFF");
+  TEST_ASSERT_TRUE(r.ok && r.command.watchdog == WatchdogAction::Off);
+  r = parseCommand("wdt hang");
+  TEST_ASSERT_TRUE(r.ok && r.command.watchdog == WatchdogAction::Hang);
+  r = parseCommand("wdt 30");
+  TEST_ASSERT_TRUE(r.ok && r.command.watchdog == WatchdogAction::Set && r.command.watchdogS == 30);
+  TEST_ASSERT_TRUE(parseCommand("wdt 5").ok);
+  TEST_ASSERT_TRUE(parseCommand("wdt 255").ok);
+  TEST_ASSERT_FALSE(parseCommand("wdt 4").ok);
+  TEST_ASSERT_FALSE(parseCommand("wdt 256").ok);
+  TEST_ASSERT_FALSE(parseCommand("wdt on").ok);
+  TEST_ASSERT_FALSE(parseCommand("wdt 30 now").ok);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_default_channel_table_is_valid);
@@ -761,5 +843,9 @@ int main() {
   RUN_TEST(test_parse_turnout_names);
   RUN_TEST(test_parse_behaviour_form);
   RUN_TEST(test_admin_password_rules);
+  RUN_TEST(test_led_state_priorities);
+  RUN_TEST(test_led_colours_and_blinking);
+  RUN_TEST(test_button_tracker);
+  RUN_TEST(test_watchdog_commands);
   return UNITY_END();
 }

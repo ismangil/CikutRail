@@ -47,6 +47,31 @@ bool read(Readings* readings) {
          g_pm1.read5VInOut(&readings->fiveVoltMv) == M5PM1_OK;
 }
 
+bool ledBegin() {
+  if (!g_available) return false;
+  // As M5PM1's NeoPixel example: GPIO0 in its special function, driven
+  // high, and LED_EN high, which on the S3Bat also powers the RGB LED.
+  return g_pm1.gpioSetFunc(M5PM1_GPIO_NUM_0, M5PM1_GPIO_FUNC_OTHER) == M5PM1_OK &&
+         g_pm1.gpioSetDrive(M5PM1_GPIO_NUM_0, M5PM1_GPIO_DRIVE_PUSHPULL) == M5PM1_OK &&
+         g_pm1.gpioSetOutput(M5PM1_GPIO_NUM_0, true) == M5PM1_OK && g_pm1.setLedEnLevel(true) == M5PM1_OK &&
+         g_pm1.setLedCount(1) == M5PM1_OK;
+}
+
+bool setLed(uint8_t r, uint8_t g, uint8_t b) {
+  if (!g_available) return false;
+  return g_pm1.setLedColor(0, r, g, b) == M5PM1_OK && g_pm1.refreshLeds() == M5PM1_OK;
+}
+
+bool buttonPressed(bool* pressed) { return g_available && g_pm1.btnGetState(pressed) == M5PM1_OK; }
+
+bool disableDoubleClickOff() { return g_available && g_pm1.setDoubleOffDisable(true) == M5PM1_OK; }
+
+bool watchdogSet(uint8_t seconds) { return g_available && g_pm1.wdtSet(seconds) == M5PM1_OK; }
+
+bool watchdogFeed() { return g_available && g_pm1.wdtFeed() == M5PM1_OK; }
+
+bool watchdogCount(uint8_t* secondsLeft) { return g_available && g_pm1.wdtGetCount(secondsLeft) == M5PM1_OK; }
+
 bool readButtons(Buttons* buttons) {
   if (!g_available) return false;
   return g_pm1.getSingleResetDisable(&buttons->singleClickResetDisabled) == M5PM1_OK &&

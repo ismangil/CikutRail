@@ -43,6 +43,9 @@ void forget();
 
 const tc::NetConfig& config();
 bool mqttUp();
+bool wifiUp();
+// No usable settings: Wi-Fi and MQTT aren't running.
+bool isOff();
 
 // Called by the portal. While it is open after a Wi-Fi failure, Wi-Fi
 // retries only when nobody is on the setup page, since each attempt

@@ -9,6 +9,7 @@
 #include "behaviour.h"
 #include "channels.h"
 #include "command.h"
+#include "health.h"
 #include "jmri_protocol.h"
 #include "net.h"
 #include "portal.h"
@@ -22,7 +23,9 @@ namespace {
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.4.0-phase4";
+const char* const kFirmwareVersion = "0.5.0-phase5";
+const uint32_t kButtonPollMs = 50;
+const uint32_t kWatchdogFeedMs = 1000;
 // Levels go to flash this long after the last change, so a burst of
 // changes costs one write.
 const uint32_t kSaveLevelsAfterMs = 2000;
@@ -50,9 +53,26 @@ uint16_t g_savedLevels = 0;     // as last written to flash
 uint16_t g_lastLevels = 0;      // as last seen, to time the flash write
 uint32_t g_levelsChangedMs = 0;
 bool g_jmriOffline = false;     // a live OFFLINE seen, JMRI not back yet
+
+// Status LED and button.
+bool g_ledReady = false;
+tc::LedState g_ledState = tc::LedState::Connecting;
+bool g_ledStateKnown = false;
+tc::Rgb g_ledShown = {0, 0, 0};
+bool g_ledShownKnown = false;
+tc::ButtonTracker g_button;
+uint32_t g_lastButtonPollMs = 0;
+
+// PM1 watchdog: off by default. "hang" stops feeding it, for the bench
+// test of what its reset does.
+enum class WatchdogMode : uint8_t { Off, On, Hang };
+WatchdogMode g_watchdogMode = WatchdogMode::Off;
+uint8_t g_watchdogS = 0;
+uint32_t g_lastFeedMs = 0;
 uint32_t g_appliedCount = 0;    // changes made by the scheduler
 
 void configure(const tc::Command& command);  // console "config", below
+void watchdogCommand(const tc::Command& command);  // console "wdt", below
 
 // "[12.345] " seconds since boot, for timing stagger and interval.
 void stamp() {
@@ -122,6 +142,7 @@ void printStatus() {
   }
   Serial.printf("pin latch (hold): %s\n", onOff(bank::holdEnabled()));
   printFiveVolt();
+  if (g_ledStateKnown) Serial.printf("LED: %s\n", tc::ledStateName(g_ledState));
   if (g_scheduler.pendingCount() > 0) {
     Serial.printf("waiting changes (stagger/interval): %u\n", g_scheduler.pendingCount());
   }
@@ -190,6 +211,8 @@ void printHelp() {
       "  config offline hold|low          when JMRI goes offline: keep, or all LOW\n"
       "  config stagger <ms>              0-5000 between any two changes (MQTT)\n"
       "  config interval <ms>             0-10000 between two changes of one turnout\n"
+      "  wdt [off | <5-255> | hang]       PM1 watchdog: show, off, on with a timeout (until\n"
+      "                                   power-off), or stop feeding it (bench test: resets)\n"
       "  help | ?                  this list\n"
       "Any command stops a running cycle.");
 }
@@ -319,6 +342,9 @@ void execute(const tc::Command& command) {
       break;
     case tc::CommandType::Config:
       configure(command);
+      break;
+    case tc::CommandType::Watchdog:
+      watchdogCommand(command);
       break;
     case tc::CommandType::Portal:
       if (command.hasSwitch) {
@@ -483,6 +509,105 @@ void configure(const tc::Command& command) {
   printBehaviour();
 }
 
+const char* watchdogModeName() {
+  switch (g_watchdogMode) {
+    case WatchdogMode::Off: return "off";
+    case WatchdogMode::On: return "on, fed every second";
+    case WatchdogMode::Hang: return "on, NOT fed (hang test)";
+  }
+  return "";
+}
+
+void watchdogCommand(const tc::Command& command) {
+  switch (command.watchdog) {
+    case tc::WatchdogAction::Show:
+      break;
+    case tc::WatchdogAction::Off:
+      if (power::watchdogSet(0)) g_watchdogMode = WatchdogMode::Off;
+      break;
+    case tc::WatchdogAction::Set:
+      g_watchdogS = static_cast<uint8_t>(command.watchdogS);
+      if (power::watchdogSet(g_watchdogS)) {
+        g_watchdogMode = WatchdogMode::On;
+        g_lastFeedMs = millis();
+      }
+      break;
+    case tc::WatchdogAction::Hang:
+      if (g_watchdogMode == WatchdogMode::Off) {
+        Serial.println("wdt hang: turn the watchdog on first (e.g. wdt 10)");
+        return;
+      }
+      g_watchdogMode = WatchdogMode::Hang;
+      stamp();
+      Serial.printf("wdt: no longer fed; the PM1 should reset the node within %u s\n", g_watchdogS);
+      return;
+  }
+  uint8_t left = 0;
+  const bool haveCount = power::watchdogCount(&left);
+  Serial.printf("watchdog: %s", watchdogModeName());
+  if (g_watchdogMode != WatchdogMode::Off) Serial.printf(", timeout %u s", g_watchdogS);
+  if (haveCount) Serial.printf(", PM1 count %u s", left);
+  Serial.println();
+}
+
+void feedWatchdog() {
+  if (g_watchdogMode != WatchdogMode::On || millis() - g_lastFeedMs < kWatchdogFeedMs) return;
+  g_lastFeedMs = millis();
+  power::watchdogFeed();
+}
+
+void updateLed() {
+  if (!g_ledReady) return;
+  tc::HealthInputs inputs;
+  inputs.portalOpen = portal::isOpen();
+  inputs.netOff = net::isOff();
+  inputs.wifiUp = net::wifiUp();
+  inputs.mqttUp = net::mqttUp();
+  inputs.jmriOffline = g_jmriOffline;
+  const tc::LedState state = tc::ledStateFor(inputs);
+  if (!g_ledStateKnown || state != g_ledState) {
+    g_ledState = state;
+    g_ledStateKnown = true;
+    stamp();
+    Serial.printf("LED: %s\n", tc::ledStateName(state));
+  }
+  const tc::Rgb colour = tc::ledColour(state, millis());
+  if (!g_ledShownKnown || colour != g_ledShown) {
+    if (power::setLed(colour.r, colour.g, colour.b)) {
+      g_ledShown = colour;
+      g_ledShownKnown = true;
+    }
+  }
+}
+
+void pollButton() {
+  if (millis() - g_lastButtonPollMs < kButtonPollMs) return;
+  g_lastButtonPollMs = millis();
+  bool pressed = false;
+  if (!power::buttonPressed(&pressed)) return;
+  switch (g_button.update(pressed, millis())) {
+    case tc::ButtonTracker::Event::None:
+      break;
+    case tc::ButtonTracker::Event::Pressed:
+      stamp();
+      Serial.println("button pressed");
+      break;
+    case tc::ButtonTracker::Event::LongPress:
+      stamp();
+      if (portal::isOpen()) {
+        Serial.println("button long press: setup access point already open");
+      } else {
+        Serial.println("button long press: opening the setup access point");
+        portal::open(portal::Reason::Button);
+      }
+      break;
+    case tc::ButtonTracker::Event::Released:
+      stamp();
+      Serial.printf("button released after %lu ms\n", static_cast<unsigned long>(g_button.lastHeldMs()));
+      break;
+  }
+}
+
 }  // namespace
 
 namespace app {
@@ -568,14 +693,24 @@ void setup() {
 
   // Pins are already at their levels, so turning 5VOUT on now can't make
   // a THROWN turnout pulse.
+  uint8_t watchdogLeft = 0;
+  bool watchdogWasOn = false;
   if (power::begin()) {
     g_fiveVoltKnown = power::fiveVoltOut(&g_fiveVoltWasOn);
     if (g_fiveVoltKnown && !g_fiveVoltWasOn) power::setFiveVoltOut(true);
+    // The PM1 keeps running through an ESP32 reset: a watchdog left on by
+    // a "wdt" before it would reset this firmware too, over and over.
+    watchdogWasOn = power::watchdogCount(&watchdogLeft) && watchdogLeft > 0;
+    power::watchdogSet(0);
+    power::disableDoubleClickOff();
+    g_ledReady = power::ledBegin();
   }
 
   const uint32_t start = millis();
   while (!Serial && millis() - start < kSerialWaitMs) delay(10);
   printBootReport();
+  if (watchdogWasOn) Serial.printf("PM1 watchdog was running (%u s left); turned off\n", watchdogLeft);
+  if (!g_ledReady) Serial.println("status LED: not available (PM1)");
   Serial.println("type help for commands");
   net::begin(kFirmwareVersion);
 }
@@ -589,5 +724,8 @@ void loop() {
   net::loop();
   portal::loop();
   web::loop();
+  updateLed();
+  pollButton();
+  feedWatchdog();
   delay(1);
 }

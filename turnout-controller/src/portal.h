@@ -12,6 +12,7 @@ enum class Reason : uint8_t {
   FirstSetup,  // nothing saved
   WifiFailed,  // saved network not joined for a while; closes once it is
   Console,     // "portal on"
+  Button,      // long press on the node's button
 };
 
 void open(Reason reason);

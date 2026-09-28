@@ -40,6 +40,7 @@ const char* reasonName(Reason reason) {
     case Reason::FirstSetup: return "no network settings saved";
     case Reason::WifiFailed: return "saved Wi-Fi network not reachable";
     case Reason::Console: return "opened from the console";
+    case Reason::Button: return "opened with a long button press";
   }
   return "";
 }
