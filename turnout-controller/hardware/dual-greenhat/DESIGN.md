@@ -25,7 +25,7 @@ The firmware doesn't change. The board uses channels 1–6 (G1–G6); channels
 | Input fuse | **PTC resettable fuse**, SMD1812P200TF16 (LCSC C20812): 2 A hold, 4 A trip, 16 V |
 | Reverse polarity | One **SS34** Schottky in series (LCSC C8678, JLC Basic), replacing the GreenHat's Q1/D7/R7 |
 | Node power | 12 V → 5 V buck feeding the S3Bat's **5VIN** pin: **TI TPS563201DDCR** (LCSC C116592) |
-| Turnout outputs | Small 2.54 mm screw terminals, **2 pins per turnout** (the GreenHat's KF128-2.54 family, 2-pin instead of 4-pin) |
+| Turnout outputs | **Two 6-way 2.54 mm screw terminals**, KF128-2.54-6P (LCSC C474924), one per block: 2 pins per turnout, 3 turnouts each |
 | Assembly | Fully assembled by JLCPCB, parts from LCSC |
 | CAD | EasyEDA |
 
@@ -153,7 +153,7 @@ Shared parts per GreenHat:
 | DRV8313 V3P3OUT cap | 4.7 nF | **470 nF**, as the DRV8313 datasheet specifies |
 | DRV8313 VM decoupling | 100 nF per chip pair | 100 nF per VM pin, plus 22 µF bulk per block |
 | Steering diodes D1–D6 | 12 | **none** |
-| Output terminals | 6 × 4-pin | **6 × 2-pin** |
+| Output terminals | 6 × 4-pin | **2 × 6-way** (2 pins per turnout) |
 | Power terminal + Q1/D7/R7 | 2 sets | **1 terminal + 1 SS34 diode**; Q1/D7/R7 dropped |
 | H7350 LDO + J6 | 2 | **none**. VCC5.0 comes from the S3Bat's 5VOUT |
 | 12 V → 5 V buck | none | **new**: feeds the S3Bat's 5VIN (see "Node power") |
@@ -323,7 +323,7 @@ The GreenHat's 1 MΩ trimmers are left out.
 
 ### Outputs and turnout direction
 
-Each 2-pin terminal carries `DRVn-0` / `DRVn-1`. A Kato coil moves one
+Each turnout uses a pair of terminal pins carrying `DRVn-0` / `DRVn-1`: on J101, pins 1–2 are channel 1, 3–4 channel 2 and 5–6 channel 3; J201 does the same for channels 4–6. A Kato coil moves one
 way or the other depending on polarity, so a turnout wired backwards is
 fixed by swapping its two wires or setting JMRI's "Inverted". Label the
 pins on the silkscreen consistently, e.g. `1A/1B` … `6A/6B`.
@@ -332,12 +332,12 @@ pins on the silkscreen consistently, e.g. `1A/1B` … `6A/6B`.
 
 | Channel | S3Bat pad | Driver block | Terminal |
 |---|---|---|---|
-| 1 | G1 | A, ch1 | T1 |
-| 2 | G2 | A, ch2 | T2 |
-| 3 | G3 | A, ch3 | T3 |
-| 4 | G4 | B, ch1 | T4 |
-| 5 | G5 | B, ch2 | T5 |
-| 6 | G6 | B, ch3 | T6 |
+| 1 | G1 | A, ch1 | J101 pins 1–2 |
+| 2 | G2 | A, ch2 | J101 pins 3–4 |
+| 3 | G3 | A, ch3 | J101 pins 5–6 |
+| 4 | G4 | B, ch1 | J201 pins 1–2 |
+| 5 | G5 | B, ch2 | J201 pins 3–4 |
+| 6 | G6 | B, ch3 | J201 pins 5–6 |
 
 All six are on the S3Bat's **left** row, together with 5VOUT and GND
 (see "The Stamp-S3Bat DIP socket").
@@ -358,16 +358,13 @@ No layout yet, so this is an estimate.
   gone, saving about 650 mm².
 - **Total:** about 4,350 mm², so roughly **70 × 60 mm**. The four
   DRV8313s with their capacitors now take the most room.
-- **Edges:** the six 2-pin output terminals butt together along one
-  edge, 12 positions × 2.54 mm ≈ 31 mm, with the 5.08 mm power terminal
-  (about 10 mm) beside them.
-  - A single 12-way block (KF128-2.54-12P, C474929) is the same 31 mm
-    long, so it saves no space, and JLC had only 28 in stock on
-    2026-09-28.
-  - Two 6-way blocks (KF128-2.54-6P, C474924, about 1.6k in stock) are
-    also the same length.
-  - The 2-pin blocks stay: best stock, and each turnout keeps its own
-    block. The S3Bat sits on another edge, with USB-C facing out.
+- **Edges:** the two 6-way output terminals (KF128-2.54-6P, C474924,
+  about 1.6k in stock) sit end to end along one edge: 12 positions ×
+  2.54 mm ≈ 31 mm. The 5.08 mm power terminal (about 10 mm) goes beside
+  them, and the S3Bat on another edge, with USB-C facing out.
+  - Six 2-pin blocks or one 12-way block (C474929, only 28 in stock on
+    2026-09-28) would be the same length.
+  - Two 6-way blocks were chosen for fewer parts with healthy stock.
 - **Cost:** it stays well under JLCPCB's 100 × 100 mm price tier. Two
   layers should be enough.
 
@@ -421,8 +418,8 @@ circuit lives in one reviewable place:
 - Sheets: **Power and S3Bat** (terminal, fuse, SS34, buck, sockets),
   **Channels 1-3** and **Channels 4-6** (one GreenHat circuit each).
 - Designators: block 1 uses the 100s (U101 is the XOR, U102/U103 the
-  drivers), block 2 the 200s, and the power sheet 1–9. Terminals are
-  T1–T6, matching the channel numbers.
+  drivers), block 2 the 200s, and the power sheet 1–9. The turnout
+  terminals are J101 (channels 1–3) and J201 (channels 4–6).
 - Checked in EasyEDA Standard: loading a sheet built the same way,
   EasyEDA matched every part to its LCSC library entry (footprint and
   supplier part), and every net label landed on a pin.

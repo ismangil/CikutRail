@@ -24,8 +24,8 @@ new files ("after" versions) are:
   Circuit
   - Two copies of the GreenHat circuit on one board: six channels.
   - Removed the steering diodes D1-D6 and output terminal pins 3-4
-    (twin-coil turnouts). Each output is a 2-pin terminal (KF128-2.54-2P)
-    for a two-wire Kato coil.
+    (twin-coil turnouts). Each turnout uses 2 pins for its two-wire
+    Kato coil, on two 6-way terminals (KF128-2.54-6P), one per block.
   - Removed the input headers J1-J3. The inputs are routed to a socket
     for an M5Stack Stamp-S3Bat DIP (G1-G6).
   - Removed the H7350 LDO and J6. The 5 V logic rail comes from the

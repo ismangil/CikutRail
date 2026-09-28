@@ -49,7 +49,7 @@ CAT = {
     "L3U3": ("C15269", "3.3uH"),
     "FUSE": ("C20812", "PTC 2A 16V"),
     "SS34": ("C8678", "SS34"),
-    "TERM2": ("C474920", "KF128-2.54-2P"),
+    "TERM6": ("C474924", "KF128-2.54-6P"),
     "PWRTERM": ("C474940", "KF128L-5.08-2P"),
     "SOCKET9": ("C22438159", "1x9 female 2.54"),
 }
@@ -109,8 +109,12 @@ def block_sheet(b, chans):
         part(s, f"C{n+4+i}", "C10U", {1: f"RD{k}", 2: "GND"})
         a, bb, y = gates[i]
         xor_pins.update({a: f"RD{k}", bb: "GND", y: f"DL{k}"})         # XOR as buffer
-        part(s, f"T{k}", "TERM2", {1: f"T{k}_A", 2: f"T{k}_B"})
     part(s, xor, "XOR", xor_pins)
+    # One 6-way terminal per block: pins 1-2 first channel's coil, 3-4 second, 5-6 third
+    term = {}
+    for i, k in enumerate(chans):
+        term[2 * i + 1], term[2 * i + 2] = f"T{k}_A", f"T{k}_B"
+    part(s, f"J{n+1}", "TERM6", term)
     part(s, f"C{n+7}", "C100N", {1: "VCC5V", 2: "GND"})
 
     k1, k2, k3 = chans
@@ -157,7 +161,8 @@ def load_symbol(lcsc, fetch):
     if not f.exists():
         if not fetch:
             sys.exit(f"missing {f.name}; run with --fetch")
-        with urllib.request.urlopen(API.format(lcsc)) as r:
+        req = urllib.request.Request(API.format(lcsc), headers={"User-Agent": "curl/8"})
+        with urllib.request.urlopen(req) as r:
             raw = json.load(r)
         if not raw.get("success"):
             sys.exit(f"EasyEDA API has no component for {lcsc}")
