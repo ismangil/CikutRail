@@ -74,3 +74,32 @@ As in phase 4. Keep the node's console open (one reader only).
 | 6 Watchdog off | | |
 | 7 Watchdog fed | | |
 | 8 Watchdog reset | | |
+
+### Run 1, 2026-09-28
+
+Same bench as phase 4. Firmware 0.5.0, then 0.5.1 and 0.5.2 with the
+fixes below.
+
+| Test | Result | Notes |
+|---|---|---|
+| 1 LED at boot | Pass | Yellow while connecting, then dim green. |
+| 2 LED states | Partly | Blue blink (setup open) and back to green seen; yellow and slow green blink not tried. |
+| 3 Short press | Pass (0.5.1) | On 0.5.0 a single click power-cycled the node (CLOSED turnouts pulsed THROWN, restored at power-up). 0.5.1 disables the PM1's single-click reset: a 255 ms press is only logged. |
+| 4 Long press | Pass (0.5.2) | On 0.5.1 holding the button made the PM1 put the ESP32 into download mode: firmware stopped, pins undriven, and even a reset after flashing stayed in download mode until a power cut. 0.5.2 locks the PM1's download mode: a 2.1 s hold does nothing, a 3.9 s hold opens the setup access point (blue blink). |
+| 5 Double-click | Not run | `pm1 btn` shows double-click power off disabled. |
+| 6 Watchdog off | Not run | |
+| 7 Watchdog fed | Not run | |
+| 8 Watchdog reset | Not run | The watchdog stays off by default until this is run. |
+
+Findings:
+
+- **The PM1 acts on the button itself unless told not to.** With its
+  defaults, a click did nothing (phase 1); disabling only double-click
+  power off made a single click power-cycle the node; and a held button
+  enters download mode. The firmware now disables all three at every
+  boot, so the button's only action is the 3 s long press.
+- **USB flashing still works with the download lock set**: it goes
+  through the ESP32-S3's own USB serial. But once the PM1 has put the
+  ESP32 into download mode, only a power cut gets it out.
+- The M5PM1 library logs every LED colour change at info level; the
+  firmware sets it to warnings only (0.5.1).
