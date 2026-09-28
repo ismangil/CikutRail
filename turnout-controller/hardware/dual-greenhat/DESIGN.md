@@ -19,9 +19,10 @@ The firmware doesn't change. The board uses channels 1–6 (G1–G6); channels
 | Channels | 6 (two GreenHat circuits of 3) |
 | Turnouts | Kato Unitrack only: one two-wire coil per turnout |
 | S3Bat mounting | **Stamp-S3Bat DIP** (S015-DIP, headers pre-soldered) in two 1×9 female 2.54 mm headers, S3Bat removable |
-| Power input | One 5.08 mm 2-pin screw terminal, as on the GreenHat (KF128L-5.08-2P, LCSC C474940), **12 V**. It powers the coils *and* the S3Bat |
-| Node power | On-board 12 V → 5 V buck converter feeding the S3Bat's **5VIN** pin: **TI TPS54202DDCR** (LCSC C191884) |
-| Reverse-polarity MOSFET | **AO3401A** (LCSC C15127, JLC Basic) in place of the GreenHat's SI2301CDS |
+| Power supply | **Fixed 12 V**: Pro-Elec PEL01531 adapter, 12.0 V, 5 A, regulated. No wide input range |
+| Power input | One 5.08 mm 2-pin screw terminal, as on the GreenHat (KF128L-5.08-2P, LCSC C474940). It powers the coils *and* the S3Bat |
+| Reverse polarity | One **SS34** Schottky in series (LCSC C8678, JLC Basic), replacing the GreenHat's Q1/D7/R7 |
+| Node power | 12 V → 5 V buck feeding the S3Bat's **5VIN** pin: **TI TPS563201DDCR** (LCSC C116592) |
 | Turnout outputs | Small 2.54 mm screw terminals, **2 pins per turnout** (the GreenHat's KF128-2.54 family, 2-pin instead of 4-pin) |
 | Assembly | Fully assembled by JLCPCB, parts from LCSC |
 | CAD | EasyEDA |
@@ -144,7 +145,7 @@ Shared parts per GreenHat:
 | Input pull-up + 100 nF | 6 | 6. Pull-up rail: see below |
 | Steering diodes D1–D6 | 12 | **none** |
 | Output terminals | 6 × 4-pin | **6 × 2-pin** |
-| Power terminal + Q1/D7/R7 | 2 sets | **1 set** |
+| Power terminal + Q1/D7/R7 | 2 sets | **1 terminal + 1 SS34 diode**; Q1/D7/R7 dropped |
 | H7350 LDO + J6 | 2 | **none**. VCC5.0 comes from the S3Bat's 5VOUT |
 | 12 V → 5 V buck | none | **new**: feeds the S3Bat's 5VIN (see "Node power") |
 | Input headers J1–J3 | 6 | **none**. GPIOs routed on the board |
@@ -176,36 +177,66 @@ A new board can fix this cheaply:
 Do option 1 first; both need a quick check on the bench (a GreenHat with
 its U3 swapped would do).
 
+### Power supply: fixed 12 V
+
+The layout supply is a **Pro-Elec PEL01531** mains adapter (model
+CGSW65C-120-5000II): **12.0 V DC regulated, 5.0 A, 60 W**. The board is
+designed for that fixed 12 V (roughly 11–13 V), not a wide input range,
+which keeps the power section small:
+
+- one Schottky diode for reverse polarity instead of a MOSFET, zener and
+  resistor;
+- a cheap buck converter rated to 17 V instead of one rated to 28 V;
+- 25 V-rated capacitors throughout the 12 V side.
+
+**Don't use a supply above 13 V with this board.** The GreenHat's usual
+12–16 V range no longer applies.
+
+The adapter's 5 A is far more than the board draws: about 0.2 A for the
+node at 12 V, plus one coil pulse at a time.
+
+### Reverse polarity: one Schottky diode
+
+A screw terminal can be wired backwards, so the input keeps a
+reverse-polarity guard, but a simpler one:
+
+- **SS34** Schottky in series with the 12 V input, LCSC **C8678**
+  (MDD, JLC **Basic**, SMA): 40 V, 3 A, 0.55 V at 3 A. About 4.5M were in
+  stock on 2026-09-28, at $0.03 each.
+- It replaces the GreenHat's Q1 / D7 / R7: three parts, two of them
+  Extended, become one Basic part.
+- **Cost:** a 0.4–0.55 V drop. The coils see about 11.5 V, and the
+  buck is unaffected. Dissipation is about 0.1 W idle (node only) and
+  about 0.5 W during a 1 A coil pulse lasting milliseconds.
+- **Current:** 3 A continuous covers one coil at a time (each DRV8313
+  output is limited to about 2.5 A peak). If the Kato coil figures come
+  in higher, the SS54 (C22452, Basic, 5 A, same SMA footprint) is a
+  drop-in.
+- Reversed, the diode blocks and nothing on the board sees −12 V.
+
+The AO3401A / AO3407A MOSFETs picked earlier aren't needed any more.
+
 ### Node power: 12 V → 5 V buck into 5VIN
 
-One screw terminal powers everything. After the reverse-polarity MOSFET,
-the 12 V rail (VM) feeds the DRV8313s and a small buck converter. The
-buck's 5 V output goes to the S3Bat's **5VIN** (right-row pin 1).
+After the diode, the 12 V rail (VM) feeds the DRV8313s and a small buck
+converter. The buck's 5 V output goes to the S3Bat's **5VIN** (right-row
+pin 1).
 
 - **Load:** the S3Bat on Wi-Fi draws a few hundred mA, with short peaks.
   The GreenHat logic hangs off the module's own 5VOUT boost (~10 mA),
   which in turn runs from 5VIN. Size the buck for **1 A** or more.
-- **Input range:** 12 V nominal, but it must ride through 16 V (the
-  GreenHat's typical top end) and the dips during a coil pulse. Choose a
-  part rated for **at least 24 V input** (28–30 V is common), with a
-  minimum input well below 12 V.
-- **Chosen: TI TPS54202DDCR**, LCSC **C191884** (JLC Extended). It's a
-  4.5–28 V input, 2 A synchronous buck at 500 kHz in SOT-23-6, with an
-  adjustable output and a 45 µA quiescent current. On 2026-09-28 JLC had
-  about 746k in stock at $0.17 each. Follow the datasheet's reference
-  layout: short switching loop, inductor close, input caps at the pins.
-  The inductor, feedback divider and caps get sized from the datasheet
-  (or TI WEBENCH) when the schematic is drawn: 5 V out, 1 A,
-  12 V nominal in. A rough first pass gives about 15 µH.
-- **Rejected:**
-  - TPS563201DDCR (C116592): cheaper, but its 17 V maximum input leaves
-    no margin over 16 V.
-  - TPS54302DDCR (C311983): 3 A and 28 V, but less stock and nearly twice
-    the price, for current the node doesn't need.
-  - MP2315GJ-Z (C45889): 24 V maximum input, low stock, $2.28 each.
-  - JLC has no Basic-tier buck with this input range. Being Extended
-    costs only the one-off loading fee, which the DRV8313s already
-    incur.
+- **Chosen: TI TPS563201DDCR**, LCSC **C116592** (JLC Extended): 4.5–17 V
+  input, 3 A, 580 kHz, SOT-23-6. Its internal compensation means no
+  compensation parts. About 160k were in stock on 2026-09-28, at $0.07
+  each.
+  - With a fixed 12 V input (about 11.5 V after the diode), 17 V is
+    ample headroom.
+  - Its datasheet has a table of inductor, output capacitor and
+    feedback resistor values for a 5 V output; use it as is.
+  - Follow the datasheet's reference layout: short switching loop,
+    inductor close, input caps at the pins.
+- **Earlier choice, dropped:** the TPS54202DDCR (C191884, 28 V). It's only
+  worth it for a wide input range.
 - **Keep it away from the antenna:** put the buck and its inductor at the
   power-terminal end of the board, not under or beside the S3Bat.
 - **Input filtering:** bulk capacitance at the buck input, so a coil pulse
@@ -231,30 +262,19 @@ What changes in behaviour:
 
 ### Coil power
 
-- One VM supply for all six channels, through a single Q1. The
+- One 12 V supply for all six channels, through the one SS34. The
   firmware's stagger scheduler fires one turnout at a time, so the peak
   is one coil.
-- Kato Unitrack coils: confirm the voltage and current Kato specifies.
-  The DRV8313 is rated to about 2.5 A peak per output; Q1 (SI2301) sets
-  the board's continuous limit. Size the VM traces and the terminal for
-  one coil's peak current plus margin.
-- **Q1: AO3401A instead of SI2301CDS.** The GreenHat's SI2301CDS is rated
-  ±8 V gate-source, but D7 clamps the gate at 9.1 V, and at 12–16 V in the
-  gate sees that full 9.1 V. Its −20 V drain rating also leaves little
-  margin above 16 V.
-  - **Chosen: AO3401A** (Alpha & Omega), LCSC **C15127**, a **JLC Basic**
-    part, so no loading fee. It's rated −30 V drain, ±12 V gate, 4 A, and
-    47 mΩ at 10 V. About 840k were in stock on 2026-09-28. Same SOT-23
-    pinout.
-  - Keep D7 (MM1Z9V1, 9.1 V) and R7 (1.5 kΩ). They hold the gate at about
-    9 V, inside ±12 V even at the zener's upper tolerance.
-  - **R7 dissipation:** at 16 V in, R7 dissipates about 32 mW, within an
-    0402's 62 mW. Above about 18 V it doesn't fit, so go to 0603 or
-    raise R7 if the input might ever exceed 16 V.
-  - **Fallback:** AO3407A, LCSC C15155 (Extended, ±20 V gate, −30 V,
-    4.3 A, 48 mΩ), if more gate margin is ever wanted.
+- Kato Unitrack coils: confirm the current Kato specifies at 12 V. The
+  DRV8313 is rated to about 2.5 A peak per output (and runs from 8 V, so
+  11.5 V is well inside its range). Size the VM traces and the terminal
+  for one coil's peak current plus margin.
 - Bulk capacitance on VM near each DRV8313, as on the GreenHat (100 nF
-  per VM pin), plus one bulk electrolytic or ceramic at the input.
+  per VM pin), plus one bulk electrolytic or ceramic (25 V) at the input.
+- **Optional fuse:** a 60 W adapter can push 5 A into a wiring fault
+  before its own protection trips. A resettable PTC fuse (about 2 A
+  hold) at the input would protect the board's traces. It's worth one
+  part; decide during layout.
 
 ### Outputs and turnout direction
 
@@ -284,9 +304,10 @@ All six are on the S3Bat's **left** row, together with 5VOUT and GND
    the layout 1:1 and set the module on it to confirm pin 1, the
    orientation (USB-C end) and that the pins fit the chosen female
    headers.
-2. **Buck converter passives** (inductor, feedback divider, caps): size
-   them from the TPS54202 datasheet when drawing the schematic.
-3. **Kato coil figures** (voltage and current) for trace sizing and pulse
+2. **Buck converter passives** (inductor, feedback divider, caps): take
+   them from the TPS563201 datasheet's 5 V table when drawing the
+   schematic.
+3. **Kato coil figures** (current at 12 V) for trace sizing and pulse
    length. The trimmer range (a few ms to about 5 s) is far longer than
    Kato needs.
 4. **Trimmers at JLCPCB.** The 3386P is through-hole, so it needs JLC's
@@ -297,6 +318,8 @@ All six are on the S3Bat's **left** row, together with 5VOUT and GND
    an enclosure.
 6. **HCT86 / 3V3 pull-up change** (above): confirm on the bench before
    committing to it.
+7. **Input fuse** (PTC, about 2 A hold): include it or not (see "Coil
+   power").
 
 ## Considered, not chosen
 
@@ -307,8 +330,8 @@ All six are on the S3Bat's **left** row, together with 5VOUT and GND
 
 ## Next steps
 
-1. Size the TPS54202's inductor, feedback divider and caps from its
-   datasheet.
+1. Take the TPS563201's inductor, feedback divider and caps from its
+   datasheet's 5 V table.
 2. In EasyEDA: import the GreenHat schematic, duplicate it into blocks
    A and B, then apply the changes in the table above.
 3. Pick parts from LCSC (basic parts where possible) and check stock.
