@@ -15,9 +15,10 @@ Phase 5 adds the node's health signals, all through the PM1:
   `status` shows the current state; changes are logged.
 - **Button**: presses are logged with how long they were held. A **long
   press (3 s)** opens the setup access point, as `portal on` does. The
-  PM1's **double-click power-off is disabled** at startup, so the button
-  can't cut the node's power (a power cut fires a THROWN pulse on CLOSED
-  turnouts).
+  PM1's **single-click reset and double-click power-off are disabled** at
+  startup, so the button can't cut the node's power (a power cut fires a
+  THROWN pulse on CLOSED turnouts). On 0.5.0, with only double-click off
+  disabled, a single click power-cycled the node; 0.5.1 disables both.
 - **PM1 watchdog**: **off by default**. The PM1 resets the node if it
   isn't fed in time, and a reset can make turnouts pulse, so it stays off
   until the bench shows what its reset does. At startup the firmware turns
@@ -44,7 +45,8 @@ As in phase 4. Keep the node's console open (one reader only).
    the setup access point`, the LED blinks blue. Note anything else the
    PM1 does while it is held (a reset would show in `boot`). `portal off`.
 5. **Double-click.** Double-click the button: the node stays on.
-   `pm1 btn` shows `double-click power off: disabled`.
+   `pm1 btn` shows `single-click reset: disabled` and `double-click power
+   off: disabled`.
 6. **Watchdog off.** `wdt`: `off`, PM1 count 0.
 7. **Watchdog fed.** `wdt 10`, wait 30 s: no reset (`boot` unchanged),
    `wdt` shows the count staying near 10. `wdt off`.

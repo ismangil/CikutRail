@@ -59,10 +59,11 @@ in [WIRING.md](WIRING.md)):
 - **Output stage:** `direct` (default, pin level as on the Pi) or
   `open-collector` (pin inverted, for a transistor stage between the node
   and the GreenHat; see WIRING.md).
-- **Button single-click reset:** dropped. The PM1's single-click reset
-  was meant to be switchable because a reset makes THROWN turnouts pulse,
-  but on the phase 1 bench a single click didn't reset the ESP32 at all
-  (PHASE1_BENCH.md, test 9). Revisit if a PM1 firmware changes that.
+- **Button single-click reset:** disabled at startup, with double-click
+  power off. On the phase 1 bench a single click did nothing, but once
+  phase 5 disabled double-click power off, a single click power-cycled
+  the node (turnouts pulsed, then were restored). So the firmware turns
+  both off; the button's only action is the 3 s long press.
 
 ## Hardware summary
 
@@ -76,8 +77,8 @@ Details in [WIRING.md](WIRING.md).
   0x6E) owns the RGB LED, the user button, battery and 5 V sensing,
   charging and the wake pin. None of these use an ESP GPIO.
 - The button goes to the PM1: single-click = reset and double-click =
-  power off are its documented defaults (a single click didn't reset the
-  node on the bench). The firmware reads a long press through the PM1.
+  power off are its defaults; the firmware disables both at startup and
+  reads a long press through the PM1.
 - GreenHat inputs: 10.2 kΩ pull-up to 5 V, Schmitt-trigger XOR delay
   stage at 5 V. Direct 3.3 V drive works (as on the Pi) but the gate's
   worst-case threshold isn't guaranteed below 3.3 V. An optional

@@ -23,7 +23,7 @@ namespace {
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.5.0-phase5";
+const char* const kFirmwareVersion = "0.5.1-phase5";
 const uint32_t kButtonPollMs = 50;
 const uint32_t kWatchdogFeedMs = 1000;
 // Levels go to flash this long after the last change, so a burst of
@@ -702,7 +702,7 @@ void setup() {
     // a "wdt" before it would reset this firmware too, over and over.
     watchdogWasOn = power::watchdogCount(&watchdogLeft) && watchdogLeft > 0;
     power::watchdogSet(0);
-    power::disableDoubleClickOff();
+    if (!power::disableButtonPowerActions()) Serial.println("PM1: could not disable the button's power actions");
     g_ledReady = power::ledBegin();
   }
 

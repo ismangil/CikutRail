@@ -67,7 +67,9 @@ bool setLed(uint8_t r, uint8_t g, uint8_t b) {
 
 bool buttonPressed(bool* pressed) { return g_available && g_pm1.btnGetState(pressed) == M5PM1_OK; }
 
-bool disableDoubleClickOff() { return g_available && g_pm1.setDoubleOffDisable(true) == M5PM1_OK; }
+bool disableButtonPowerActions() {
+  return g_available && g_pm1.setSingleResetDisable(true) == M5PM1_OK && g_pm1.setDoubleOffDisable(true) == M5PM1_OK;
+}
 
 bool watchdogSet(uint8_t seconds) { return g_available && g_pm1.wdtSet(seconds) == M5PM1_OK; }
 

@@ -36,8 +36,11 @@ bool setLed(uint8_t r, uint8_t g, uint8_t b);
 // Button held down right now.
 bool buttonPressed(bool* pressed);
 
-// Stops a double-click from powering the node off.
-bool disableDoubleClickOff();
+// Stops the button from cutting the node's power: no double-click power
+// off and no single-click reset. On this board the single-click "reset"
+// is a power cycle, and it only acts once double-click power off is
+// disabled (phase 5 bench), so both go off together.
+bool disableButtonPowerActions();
 
 // PM1 watchdog: resets the node if not fed within the timeout. 0 = off.
 bool watchdogSet(uint8_t seconds);
