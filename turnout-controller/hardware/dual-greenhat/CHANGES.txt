@@ -45,6 +45,8 @@ new files ("after" versions) are:
     counter-clockwise (0 Ohm), so the pulse is fixed by the 10 kOhm series
     resistor and the 10 uF capacitor.
   Documentation
-  - New schematic generated for EasyEDA Standard (see above); no PCB
-    layout or Gerbers yet. Those will be added here when made, together
-    with PDF exports of the schematic.
+  - New schematic generated for EasyEDA Standard (see above).
+  - New PCB placement for EasyEDA Standard, 70 x 56 mm, not yet routed
+    (easyeda/build_pcb.py, easyeda/DualGreenHat_pcb.json,
+    easyeda/placement.svg, footprints in easyeda/fp/). Gerbers and PDF
+    exports will be added here when made.

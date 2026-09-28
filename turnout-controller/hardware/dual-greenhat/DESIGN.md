@@ -1,7 +1,7 @@
 # Dual-GreenHat carrier board: design note
 
-Status: **schematic started**. The first EasyEDA schematic is generated in
-[easyeda/](easyeda/); no PCB layout yet.
+Status: **placement started**. The schematic and a first PCB placement
+(70 × 56 mm, not yet routed) are generated in [easyeda/](easyeda/).
 
 One PCB that the Stamp-S3Bat plugs into, carrying two copies of IoTT's
 GreenHat Coil Driver circuit: six turnout channels for this layout's six
@@ -432,12 +432,69 @@ Import > EasyEDA Standard). After a change to `build_schematic.py`:
 python build_schematic.py
 ```
 
+## PCB placement (EasyEDA)
+
+[easyeda/build_pcb.py](easyeda/build_pcb.py) takes the parts and nets from
+`build_schematic.py` and the LCSC footprints (cached in `easyeda/fp/`), and
+places them from the `PLACE` table. It writes:
+
+- `DualGreenHat_pcb.json`: an EasyEDA Standard PCB document with the board
+  outline, three M3 holes, every footprint placed and every pad on its
+  net. Power and coil nets get a 0.8 mm track rule ("Power"); the rest use
+  0.254 mm.
+- `placement.svg`: a top-view sketch for review.
+
+The script also checks that no two footprints overlap and that nothing
+leaves the board or crowds a mounting hole.
+
+**Floorplan** (top view, 70 × 56 mm, y down):
+
+| Area | Parts |
+|---|---|
+| Top edge | J101 (channels 1–3) and J201 (channels 4–6) on the left, a mounting hole, J1 (12 V in) on the right |
+| Band below | the four DRV8313s in a row (U102, U103, U202, U203) |
+| Around the drivers | charge-pump and VM caps above each driver, V3P3 and second VM caps below, 22 µF bulk per block |
+| Right column | F1, D1, bulk caps, then the buck (U1, L1, R1–R4, C3–C8) |
+| Bottom left | the Stamp-S3Bat sockets J2 (G-row, on top) and J3, with USB-C at the left board edge |
+| Bottom middle | U101/U201 (74HCT86) and each channel's RC parts |
+
+- **Drivers rotated 180°:** pins 1–14 (charge pump, VM, coil outputs) face
+  the terminals, and pins 15–28 (logic inputs) face the XORs and the
+  S3Bat.
+- **The S3Bat's G-row:** it faces the logic, so the six input traces are
+  short.
+- **The buck:** it sits in the far corner from the module's USB end.
+
+**Checked in EasyEDA Standard:** a test board with one of each rotated
+footprint type loaded cleanly. EasyEDA drew the designators itself,
+built the nets from the pad nets, applied the Power rule and kept each
+part's LCSC number and BOM flag.
+
+**Not included:** 3D models (EasyEDA can re-attach them by package),
+copper pours, traces and vias.
+
+**To check in EasyEDA before routing:**
+
+- **Screw-terminal orientation:** the wire entry of J1, J101 and J201 must
+  face the top board edge. Check in the 3D view and rotate 180° if not.
+- **Where the S3Bat's antenna is:** keep copper pour (top and bottom)
+  away from under that end of the module.
+- **The module's outline:** 18 × 29.8 mm. It sits above J2/J3, so nothing
+  tall may go under it. C107 and C207 sit just outside it.
+
 ## Next steps
 
-1. Open the schematic in EasyEDA and review it against `netlist.txt`.
-2. Convert it to a PCB. Set the S3Bat sockets J2/J3 15.24 mm apart, with
-   J2 (G1–G7) on the left when the USB-C end faces you.
-3. Lay out the board: power path and GND join first, then the drivers,
-   the headers and terminals. Keep the buck and copper pour away from
-   the module's antenna.
-4. Order a small batch; bench-test against PHASE1_BENCH.md.
+1. Open `DualGreenHat_pcb.json` in EasyEDA (File > Open > EasyEDA
+   Source) and do the checks under "PCB placement".
+2. Route the power path by hand first:
+   - J1 → F1 → D1 → the VM bus;
+   - the buck, with its switching loop kept tight;
+   - the coil outputs to J101/J201;
+   - VM to each driver.
+3. Add a GND pour on the bottom layer, with vias under each DRV8313's
+   thermal pad (the footprint has them). Keep the pour clear of the
+   module's antenna end.
+4. Route the logic by hand or with the autorouter.
+5. Run DRC, then export Gerbers, BOM and pick-and-place. Add the Gerbers
+   and a schematic PDF to this folder, as the TAPR OHL requires.
+6. Order a small batch; bench-test against PHASE1_BENCH.md.
