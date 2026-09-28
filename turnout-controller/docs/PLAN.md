@@ -104,6 +104,7 @@ lib/turnout_core/   hardware-free logic, built for the board and for PC tests
   jmri_protocol.*   topic/payload decoding                            (phase 2)
   net_config.*      network settings validation, setup page form      (phase 2)
   health.*          status LED states, button long press              (phase 5)
+  channel_config.*  turnout/sensor mode per channel, sensor debounce  (phase 6)
 src/
   main.cpp          startup order, main loop, console                 (phase 1)
   turnout_bank.*    drive pins, pin latch, restore; later stagger and
@@ -128,12 +129,14 @@ M5Stack products, and some of those pins are turnout outputs here.
 ### Startup order
 
 1. Load config from flash.
-2. Drive every pin as early as possible, from a C++ constructor before
-   `app_main()`: to the levels in RTC memory after a reset, or all LOW
-   after a power cut (5VOUT is off then, so nothing can pulse). Then, from
-   `initVariant()` once flash is readable, apply the startup policy
-   (restore: RTC levels after a reset, flash levels after a power cut;
-   low: all LOW). Latch every pin (`gpio_hold_en`), which may keep outputs
+2. After a reset, drive every turnout pin as early as possible, from a
+   C++ constructor before `app_main()`, to the levels in RTC memory, and
+   set up the sensor pins it records (never driven). After a power cut
+   RTC memory is empty, so no pin is driven yet (5VOUT is off then, so
+   nothing can pulse, and a sensor pin is never driven). Then, from
+   `initVariant()` once flash is readable, set up every pin from the
+   channel modes and apply the startup policy (restore: RTC levels after
+   a reset, flash levels after a power cut; low: all LOW). Latch every pin (`gpio_hold_en`), which may keep outputs
    steady across software resets. The float time and which reset types
    the latch survives are still unmeasured (the phase 1 reset tests were
    skipped). Even from a constructor, the pins are first driven about
@@ -163,8 +166,9 @@ Details in WIRING.md, "Power sequencing through 5VOUT".
   change keeps only the newest command.
 - The levels are saved to flash 2 s after the last change, so a burst of
   changes costs one write.
-- Optional feedback: publish the new state on
-  `<channel>track/turnout/<name>/state`, never on the command topic.
+- Optional feedback (phase 6): publish each turnout's pin state on
+  `<channel>track/turnout/<name>/state`, retained, never on the command
+  topic.
 
 ### Status
 
@@ -255,8 +259,9 @@ Each phase is tested on real hardware before the next starts.
    PM1 watchdog off by default with a console test (`wdt hang`) to see
    what its reset does before deciding. Procedure in
    [PHASE5_BENCH.md](PHASE5_BENCH.md).
-6. **Optional.** MONITORING feedback topic; per-pin sensor mode
-   (emulating JMRI Pi sensors) if inputs are needed later.
+6. **Optional.** MONITORING feedback topic (`.../state`, off by default)
+   and per-channel sensor mode (inputs published on `track/sensor/<name>`,
+   as JMRI Pi sensors). Procedure in [PHASE6_BENCH.md](PHASE6_BENCH.md).
 
 ## Open items
 

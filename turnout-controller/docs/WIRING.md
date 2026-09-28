@@ -158,6 +158,23 @@ its input takes the wrong level.
    coming from the node's own 5VOUT, this only happens during a node
    reset.
 
+## Sensor inputs (phase 6)
+
+A channel set to *sensor* on the config page is an input, published to
+JMRI as `MS<name>`. It is never driven by the firmware.
+
+- **Never on a GreenHat input.** An undriven GreenHat input floats HIGH
+  through its pull-up, so a THROWN turnout pulses CLOSED. Use sensor mode
+  only on channels wired to a switch or detector.
+- **3.3 V at most.** Nothing from a 5 V circuit (including the GreenHat's
+  5 V side) connects directly.
+- Usual wiring: a contact (push button, reed or micro switch, a detector's
+  open-collector output) from the pin to **GND**, with the internal
+  **pull-up** and **active LOW**. A **1 kΩ series resistor** in the
+  sensor wire protects the pin from a wiring mistake.
+- The input is debounced for 50 ms; a sensor reports ACTIVE / INACTIVE on
+  change and on every MQTT connect.
+
 ## Optional open-collector stage
 
 The GreenHat is designed for open-collector inputs. A transistor per

@@ -32,6 +32,10 @@ node's own connection.
 | Payload | `CLOSED` or `THROWN` (`UNKNOWN` / `INCONSISTENT` are ignored) |
 | Feedback topic (node → JMRI, optional) | `<channel>track/turnout/<name>/state` |
 
+- Feedback, when a node has it on, is the turnout's pin state, retained,
+  on `<channel>track/turnout/<name>/state`; JMRI's turnout receive topic
+  is then `track/turnout/{0}/state` (connection-wide) with feedback mode
+  MONITORING.
 - JMRI's default *send* and *receive* topics are the same
   (`track/turnout/{0}`). A node must **never publish on the command topic**:
   JMRI would treat it as a new command. Feedback, when enabled, goes on the
@@ -52,6 +56,18 @@ node's own connection.
 | … | one block per further node |
 
 Record each node's block here when it is commissioned.
+
+## Sensors
+
+| Item | Value |
+|---|---|
+| JMRI system name | `MS<name>`, e.g. `MS105` |
+| Topic (node → JMRI) | `<channel>track/sensor/<name>`, retained |
+| Payload | `ACTIVE` or `INACTIVE` |
+
+JMRI's default sensor receive and send topics are both
+`track/sensor/{0}`. Sensor names use the same per-node number block as
+turnouts (the MT and MS name spaces are separate in JMRI).
 
 ## Node status
 
