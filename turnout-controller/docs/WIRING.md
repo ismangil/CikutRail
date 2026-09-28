@@ -195,9 +195,11 @@ the ESP32's Wi-Fi peaks.
 
 ## Onboard, via the PM1 (no ESP GPIO used)
 
-- RGB LED (status)
+- RGB LED (status; PM1 GPIO0 as NeoPixel, see PHASE5_BENCH.md for the
+  colours)
 - User button: single-click reset and double-click power off (PM1
-  defaults), long press = open the setup portal. A single-click reset
+  defaults; the firmware disables double-click power off), long press
+  (3 s) = open the setup access point. A single-click reset
   makes THROWN turnouts pulse (see above); the config page can disable it.
   **On the phase 1 bench, a single click on USB power did not reset the
   ESP32**, although the PM1 reported single-click reset enabled and saw

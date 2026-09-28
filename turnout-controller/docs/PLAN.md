@@ -101,11 +101,13 @@ lib/turnout_core/   hardware-free logic, built for the board and for PC tests
   level_snapshot.*  pin levels kept in RTC memory across resets       (phase 1)
   jmri_protocol.*   topic/payload decoding                            (phase 2)
   net_config.*      network settings validation, setup page form      (phase 2)
+  health.*          status LED states, button long press              (phase 5)
 src/
   main.cpp          startup order, main loop, console                 (phase 1)
   turnout_bank.*    drive pins, pin latch, restore; later stagger and
                     minimum interval                                  (phase 1)
-  power.*           PM1: 5VOUT, voltages; later LED, button, watchdog (phase 1)
+  power.*           PM1: 5VOUT, voltages (phase 1); LED, button,
+                    watchdog                                          (phase 5)
   net.*             Wi-Fi + ESP-IDF esp-mqtt client: QoS 2, auto-reconnect,
                     last will                                         (phase 2)
   settings.*        network settings in flash (Preferences/NVS)       (phase 2)
@@ -167,8 +169,8 @@ Details in WIRING.md, "Power sequencing through 5VOUT".
 - `cikutrail/<node>/status`: `online` / `offline`, retained.
 - `cikutrail/<node>/info`: retained JSON, refreshed periodically:
   firmware version, IP, RSSI, uptime, 5 V input present.
-- LED: blue blink = setup portal, yellow = connecting, green = subscribed,
-  red blink = error.
+- LED: blue blink = setup portal, red blink = error (network off),
+  yellow = connecting, slow green blink = JMRI offline, green = subscribed.
 
 ## Setup and configuration
 
@@ -245,7 +247,12 @@ Each phase is tested on real hardware before the next starts.
    factory reset; turnout test buttons. No OTA and no Reboot button, by
    decision: firmware stays on USB, and the node never restarts itself.
    Procedure in [PHASE4_BENCH.md](PHASE4_BENCH.md).
-5. **Health.** LED states, long press, PM1 watchdog.
+5. **Health.** Status LED states (blue blink setup, red blink error,
+   yellow connecting, slow green blink JMRI offline, green OK), long press
+   (3 s) opens the setup access point, double-click power-off disabled,
+   PM1 watchdog off by default with a console test (`wdt hang`) to see
+   what its reset does before deciding. Procedure in
+   [PHASE5_BENCH.md](PHASE5_BENCH.md).
 6. **Optional.** MONITORING feedback topic; per-pin sensor mode
    (emulating JMRI Pi sensors) if inputs are needed later.
 
