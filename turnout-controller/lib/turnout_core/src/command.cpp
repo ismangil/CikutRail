@@ -222,7 +222,9 @@ ParseResult parseCommand(const char* line) {
   if (equalsIgnoreCase(verb, "config")) {
     command.type = CommandType::Config;
     if (count == 1) return succeed(command);
-    if (count != 3) return fail("usage: config [startup restore|low | offline hold|low | stagger <ms> | interval <ms>]");
+    if (count != 3) {
+      return fail("usage: config [startup restore|low | offline hold|low | stagger <ms> | interval <ms> | feedback on|off]");
+    }
     const char* key = tokens[1];
     const char* value = tokens[2];
     if (equalsIgnoreCase(key, "startup")) {
@@ -249,8 +251,17 @@ ParseResult parseCommand(const char* line) {
     } else if (equalsIgnoreCase(key, "interval")) {
       command.configKey = ConfigKey::Interval;
       if (!parseNumber(value, kMaxMinIntervalMs, &command.configValue)) return fail("interval: 0-10000 ms");
+    } else if (equalsIgnoreCase(key, "feedback")) {
+      command.configKey = ConfigKey::Feedback;
+      if (equalsIgnoreCase(value, "on")) {
+        command.configValue = 1;
+      } else if (equalsIgnoreCase(value, "off")) {
+        command.configValue = 0;
+      } else {
+        return fail("feedback: on or off");
+      }
     } else {
-      return fail("config keys: startup, offline, stagger, interval");
+      return fail("config keys: startup, offline, stagger, interval, feedback");
     }
     return succeed(command);
   }

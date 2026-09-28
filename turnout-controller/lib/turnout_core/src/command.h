@@ -22,13 +22,13 @@ enum class CommandType : uint8_t {
   Net,        // net
   NetForget,  // net forget
   Portal,     // portal [on|off]
-  Config,     // config [startup|offline|stagger|interval <value>]
+  Config,     // config [startup|offline|stagger|interval|feedback <value>]
   Watchdog,   // wdt [off | <seconds> | hang]
 };
 
 enum class ResetKind : uint8_t { Soft, Panic, Watchdog };
 
-enum class ConfigKey : uint8_t { Show, Startup, Offline, Stagger, Interval };
+enum class ConfigKey : uint8_t { Show, Startup, Offline, Stagger, Interval, Feedback };
 
 enum class WatchdogAction : uint8_t { Show, Off, Set, Hang };
 

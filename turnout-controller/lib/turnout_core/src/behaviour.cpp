@@ -8,6 +8,7 @@ Behaviour defaultBehaviour() {
   behaviour.offline = OfflinePolicy::Hold;
   behaviour.staggerMs = 0;
   behaviour.minIntervalMs = 0;
+  behaviour.feedback = false;
   return behaviour;
 }
 

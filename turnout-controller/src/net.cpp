@@ -13,6 +13,7 @@
 #include "portal.h"
 #include "power.h"
 #include "settings.h"
+#include "turnout_bank.h"
 #include "web.h"
 
 namespace net {
@@ -50,6 +51,19 @@ char g_mdnsName[tc::kMaxNodeNameLength + 1];  // name mDNS announces, "" = not s
 std::atomic<bool> g_mqttUp(false);
 std::atomic<bool> g_infoDue(false);
 bool g_rereadDue = false;  // main loop only
+
+// Feedback and sensor states, published from the main loop.
+std::atomic<bool> g_publishAllDue(false);  // set on each MQTT connect
+bool g_feedback = false;
+uint16_t g_publishedLevels = 0;
+uint16_t g_sensorStates = 0;  // bit set = ACTIVE
+uint16_t g_sensorKnown = 0;
+uint16_t g_sensorDirty = 0;
+
+// Names of the channels in turnout mode ("" for sensors and unused
+// channels). The MQTT task reads it, so it changes only while MQTT is
+// stopped (refreshTurnoutNames() from startMqtt()).
+const char* g_turnoutNames[tc::kChannelCount];
 std::atomic<uint32_t> g_connects(0);
 std::atomic<uint32_t> g_received(0);
 std::atomic<uint32_t> g_dropped(0);
@@ -62,10 +76,25 @@ uint32_t g_ignored = 0;
 
 const char* const* names() { return settings::turnoutNames(); }
 
+uint16_t bitFor(uint8_t channel) { return static_cast<uint16_t>(1u << (channel - 1)); }
+
+void refreshTurnoutNames() {
+  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+    g_turnoutNames[channel - 1] = bank::isSensorChannel(channel) ? "" : names()[channel - 1];
+  }
+}
+
+void publishRetained(const char* topic, const char* payload) {
+  esp_mqtt_client_publish(g_client, topic, payload, 0, 1, 1);
+}
+
+// An empty retained message removes the retained one.
+void clearRetained(const char* topic) { esp_mqtt_client_publish(g_client, topic, "", 0, 1, 1); }
+
 uint8_t subscribedCount() {
   uint8_t count = 0;
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
-    if (names()[i][0] != '\0') ++count;
+    if (g_turnoutNames[i][0] != '\0') ++count;
   }
   return count;
 }
@@ -82,8 +111,8 @@ const char* sourceName(settings::Source source) {
 void subscribeTurnouts(esp_mqtt_client_handle_t client) {
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
-    if (names()[i][0] == '\0') continue;
-    if (tc::turnoutTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
+    if (g_turnoutNames[i][0] == '\0') continue;
+    if (tc::turnoutTopic(g_config.jmriChannel, g_turnoutNames[i], topic, sizeof(topic))) {
       esp_mqtt_client_subscribe(client, topic, kCommandQos);
     }
   }
@@ -104,6 +133,7 @@ void onMqttEvent(void*, esp_event_base_t, int32_t id, void* data) {
       subscribeAll(event->client);
       g_mqttUp = true;
       g_infoDue = true;
+      g_publishAllDue = true;
       break;
     case MQTT_EVENT_DISCONNECTED:
       g_mqttUp = false;
@@ -125,7 +155,7 @@ void onMqttEvent(void*, esp_event_base_t, int32_t id, void* data) {
         memcpy(message.text, event->data, length);
         message.text[length] = '\0';
       } else {
-        const uint8_t channel = tc::matchTurnoutTopic(g_config.jmriChannel, names(), tc::kChannelCount,
+        const uint8_t channel = tc::matchTurnoutTopic(g_config.jmriChannel, g_turnoutNames, tc::kChannelCount,
                                                       event->topic, static_cast<size_t>(event->topic_len));
         if (channel == 0) break;
         ++g_received;
@@ -173,7 +203,8 @@ const char* checkTopics() {
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
     if (names()[i][0] == '\0') continue;
-    if (!tc::turnoutTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
+    // The feedback topic is the longest one a name makes.
+    if (!tc::turnoutStateTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
       return "JMRI channel plus turnout name too long";
     }
   }
@@ -182,6 +213,7 @@ const char* checkTopics() {
 
 // Creates the MQTT client for g_config; loop() starts it once Wi-Fi is up.
 bool startMqtt() {
+  refreshTurnoutNames();
   const char* error = checkTopics();
   if (error != nullptr) {
     Serial.printf("net: off: %s\n", error);
@@ -243,6 +275,36 @@ void startNetwork() {
   if (startMqtt()) joinWifi();
 }
 
+// Feedback (pin state of each turnout) and sensor states, retained. All
+// of them after each connect, then only changes.
+void publishChanges() {
+  const bool all = g_publishAllDue.exchange(false);
+  char topic[tc::kMaxTopicLength + 1];
+  if (g_feedback) {
+    const uint16_t levels = bank::levels();
+    const uint16_t changed = all ? tc::kAllChannelsMask : static_cast<uint16_t>(levels ^ g_publishedLevels);
+    for (uint8_t channel = 1; channel <= tc::kChannelCount && changed != 0; ++channel) {
+      const char* name = g_turnoutNames[channel - 1];
+      if (!(changed & bitFor(channel)) || name[0] == '\0') continue;
+      if (tc::turnoutStateTopic(g_config.jmriChannel, name, topic, sizeof(topic))) {
+        publishRetained(topic, tc::stateName(tc::stateForPinLevel((levels & bitFor(channel)) != 0)));
+      }
+    }
+    g_publishedLevels = levels;
+  }
+  if (all) g_sensorDirty = g_sensorKnown;
+  for (uint8_t channel = 1; channel <= tc::kChannelCount && g_sensorDirty != 0; ++channel) {
+    const uint16_t bit = bitFor(channel);
+    if (!(g_sensorDirty & bit)) continue;
+    g_sensorDirty &= static_cast<uint16_t>(~bit);
+    const char* name = names()[channel - 1];
+    if (!bank::isSensorChannel(channel) || name[0] == '\0') continue;
+    if (tc::sensorTopic(g_config.jmriChannel, name, topic, sizeof(topic))) {
+      publishRetained(topic, tc::sensorPayload((g_sensorStates & bit) != 0));
+    }
+  }
+}
+
 }  // namespace
 
 void begin(const char* firmwareVersion) {
@@ -275,12 +337,68 @@ void applyConfig(const tc::NetConfig& config) {
   startNetwork();
 }
 
-void applyTurnoutNames(const tc::TurnoutNames& names) {
-  // The MQTT task reads the names, so they change only while it is stopped.
+void applyChannels(const tc::TurnoutNames& newNames, const tc::ChannelConfig& newChannels) {
+  const tc::ChannelConfig channels = tc::normalised(newChannels);
+  // Retained topics a channel leaves behind (its old name, or its old
+  // mode's topic) are cleared while MQTT is still up.
+  if (g_mqttUp) {
+    char topic[tc::kMaxTopicLength + 1];
+    for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+      const char* oldName = names()[channel - 1];
+      if (oldName[0] == '\0') continue;
+      const bool wasSensor = bank::isSensorChannel(channel);
+      const bool isSensor = (channels.sensorMask & bitFor(channel)) != 0;
+      if (strcmp(oldName, newNames.name[channel - 1]) == 0 && wasSensor == isSensor) continue;
+      if (wasSensor && tc::sensorTopic(g_config.jmriChannel, oldName, topic, sizeof(topic))) {
+        clearRetained(topic);
+      } else if (!wasSensor && g_feedback &&
+                 tc::turnoutStateTopic(g_config.jmriChannel, oldName, topic, sizeof(topic))) {
+        clearRetained(topic);
+      }
+    }
+  }
+  // The MQTT task reads the names and modes, so they change only while it
+  // is stopped.
   stopMqtt();
-  const bool saved = settings::saveTurnoutNames(names);
-  Serial.printf("net: turnout names %s, resubscribing\n", saved ? "saved" : "changed (flash write failed)");
+  bool saved = settings::saveTurnoutNames(newNames);
+  const tc::ChannelConfig& old = bank::channelConfig();
+  if (memcmp(&old, &channels, sizeof(channels)) != 0) {
+    saved = settings::saveChannelConfig(channels) && saved;
+    bank::setChannelConfig(channels);
+  }
+  g_sensorKnown &= channels.sensorMask;
+  g_sensorDirty &= channels.sensorMask;
+  Serial.printf("net: channels %s, resubscribing\n", saved ? "saved" : "changed (flash write failed)");
   if (g_haveConfig) startMqtt();
+}
+
+void applyTurnoutNames(const tc::TurnoutNames& names) { applyChannels(names, bank::channelConfig()); }
+
+void setFeedback(bool on) {
+  if (g_feedback && !on && g_mqttUp) {
+    // Clear the retained states, so JMRI isn't left with stale ones.
+    char topic[tc::kMaxTopicLength + 1];
+    for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+      if (g_turnoutNames[i][0] == '\0') continue;
+      if (tc::turnoutStateTopic(g_config.jmriChannel, g_turnoutNames[i], topic, sizeof(topic))) clearRetained(topic);
+    }
+  }
+  if (on && !g_feedback) g_publishAllDue = true;
+  g_feedback = on;
+}
+
+void setSensorState(uint8_t channel, bool active) {
+  if (channel < 1 || channel > tc::kChannelCount) return;
+  const uint16_t bit = bitFor(channel);
+  const bool known = (g_sensorKnown & bit) != 0;
+  if (known && ((g_sensorStates & bit) != 0) == active) return;
+  if (active) {
+    g_sensorStates |= bit;
+  } else {
+    g_sensorStates &= static_cast<uint16_t>(~bit);
+  }
+  g_sensorKnown |= bit;
+  g_sensorDirty |= bit;
 }
 
 void forget() {
@@ -372,6 +490,7 @@ void loop() {
     g_rereadDue = false;
     subscribeTurnouts(g_client);
   }
+  if (mqttUp) publishChanges();
 }
 
 void rereadRetained() { g_rereadDue = true; }
@@ -415,10 +534,15 @@ void printStatus() {
   Serial.printf("JMRI channel: \"%s\"\n", g_config.jmriChannel);
   char topic[tc::kMaxTopicLength + 1];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
+    const uint8_t channel = i + 1;
     if (names()[i][0] == '\0') {
-      Serial.printf("%2u  (unused)\n", i + 1);
+      Serial.printf("%2u  (unused)\n", channel);
+    } else if (bank::isSensorChannel(channel)) {
+      if (tc::sensorTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
+        Serial.printf("%2u  %s (sensor, publishes)\n", channel, topic);
+      }
     } else if (tc::turnoutTopic(g_config.jmriChannel, names()[i], topic, sizeof(topic))) {
-      Serial.printf("%2u  %s\n", i + 1, topic);
+      Serial.printf("%2u  %s%s\n", channel, topic, g_feedback ? " (+ /state feedback)" : "");
     }
   }
   Serial.printf("messages: %lu received, %lu applied, %lu unchanged, %lu ignored, %lu dropped, %lu split\n",

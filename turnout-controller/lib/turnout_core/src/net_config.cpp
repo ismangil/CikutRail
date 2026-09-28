@@ -173,7 +173,7 @@ bool parseTurnoutNames(const char* const* fields, TurnoutNames* out, const char*
 }
 
 bool parseBehaviourForm(const char* startup, const char* offline, const char* staggerMs, const char* intervalMs,
-                        Behaviour* out, const char** error) {
+                        const char* feedback, Behaviour* out, const char** error) {
   Behaviour behaviour = defaultBehaviour();
   uint16_t stagger = 0;
   uint16_t interval = 0;
@@ -211,6 +211,7 @@ bool parseBehaviourForm(const char* startup, const char* offline, const char* st
   }
   behaviour.staggerMs = stagger;
   behaviour.minIntervalMs = interval;
+  behaviour.feedback = strcmp(orEmpty(feedback), "on") == 0;
   *out = behaviour;
   return true;
 }

@@ -28,6 +28,7 @@ struct Behaviour {
   OfflinePolicy offline;
   uint16_t staggerMs;      // between any two changes; 0 = none (as the Pi)
   uint16_t minIntervalMs;  // between two changes of one turnout; 0 = none
+  bool feedback;           // publish each turnout's pin state on .../state (JMRI MONITORING)
 };
 
 Behaviour defaultBehaviour();

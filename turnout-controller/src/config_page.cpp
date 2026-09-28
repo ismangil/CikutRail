@@ -67,30 +67,58 @@ void option(String& body, const char* value, const char* label, bool selected) {
   body += F("</option>");
 }
 
-void turnoutsSection(String& body) {
+void channelsSection(String& body) {
   const char* const* names = settings::turnoutNames();
-  body += F("<fieldset><legend>Turnouts</legend>");
+  const tc::ChannelConfig& channels = bank::channelConfig();
+  body += F("<fieldset><legend>Channels</legend>");
   formStart(body, "/names");
   // Enter in a name field submits the form with its first submit button;
-  // make that "save names", never a test button that moves a turnout.
+  // make that "save channels", never a test button that moves a turnout.
   body += F("<button type=submit tabindex=-1 aria-hidden=true "
-            "style='position:absolute;left:-9999px;width:1px;height:1px'>Save names</button>");
-  body += F("<table><tr><th>Ch</th><th>Pin</th><th>JMRI name <span class=hint>(MT&hellip;)</span></th>"
-            "<th>State</th><th>Test</th></tr>");
+            "style='position:absolute;left:-9999px;width:1px;height:1px'>Save channels</button>");
+  body += F("<div style='overflow-x:auto'><table><tr><th>Ch</th><th>Pin</th><th>Mode</th>"
+            "<th>JMRI name <span class=hint>(MT/MS&hellip;)</span></th><th>Sensor input</th><th>State</th>"
+            "<th>Test</th></tr>");
   for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
-    const bool closed = bank::state(channel) == tc::TurnoutState::Closed;
-    char fieldName[4];
-    snprintf(fieldName, sizeof(fieldName), "n%u", channel);
+    const bool sensor = bank::isSensorChannel(channel);
+    const tc::SensorPull pull = tc::sensorPull(channels, channel);
+    char id[4];
     body += F("<tr><td>");
     body += channel;
     body += F("</td><td>G");
     body += tc::kChannelGpio[channel - 1];
-    body += F("</td><td><input name=");
-    body += fieldName;
+    snprintf(id, sizeof(id), "m%u", channel);
+    body += F("</td><td><select name=");
+    body += id;
+    body += F(">");
+    option(body, "turnout", "turnout", !sensor);
+    option(body, "sensor", "sensor", sensor);
+    snprintf(id, sizeof(id), "n%u", channel);
+    body += F("</select></td><td><input name=");
+    body += id;
     body += F(" value=\"");
     body += web::esc(names[channel - 1]);
-    body += F("\" maxlength=16 autocapitalize=off></td><td class=");
-    body += closed ? F("closed>CLOSED") : F("thrown>THROWN");
+    body += F("\" maxlength=16 autocapitalize=off></td><td>");
+    snprintf(id, sizeof(id), "p%u", channel);
+    body += F("<select name=");
+    body += id;
+    body += F(">");
+    option(body, "up", "pull-up", sensor ? pull == tc::SensorPull::Up : true);
+    option(body, "down", "pull-down", sensor && pull == tc::SensorPull::Down);
+    option(body, "none", "no pull", sensor && pull == tc::SensorPull::None);
+    snprintf(id, sizeof(id), "a%u", channel);
+    body += F("</select><label style='display:inline;font-weight:normal'><input type=checkbox name=");
+    body += id;
+    body += F(" value=on style='width:auto'");
+    if (sensor ? tc::sensorActiveLow(channels, channel) : true) body += F(" checked");
+    body += F("> active LOW</label></td><td>");
+    if (sensor) {
+      body += bank::padLevel(channel) ? F("pin HIGH") : F("pin LOW");
+      body += F("</td><td></td></tr>");
+      continue;
+    }
+    const bool closed = bank::state(channel) == tc::TurnoutState::Closed;
+    body += closed ? F("<span class=closed>CLOSED</span>") : F("<span class=thrown>THROWN</span>");
     if (app::isPending(channel)) body += F(" <span class=hint>(change waiting)</span>");
     body += F("</td><td><button name=set value=");
     body += channel;
@@ -98,9 +126,13 @@ void turnoutsSection(String& body) {
     body += channel;
     body += F("t formaction=/turnout>Throw</button></td></tr>");
   }
-  body += F("</table><p class=hint>A blank name leaves the channel unsubscribed (its pin keeps its level). "
-            "The test buttons change the pin here only: JMRI isn't told, and its next command wins.</p>"
-            "<button type=submit>Save names</button></form></fieldset>");
+  body += F("</table></div><p class=hint>A blank name leaves the channel unused (a turnout keeps its pin level). "
+            "Test buttons change the pin here only: JMRI isn't told, and its next command wins.</p>"
+            "<p class=err><b>Sensor mode is only for pins wired to a switch or detector, never to a GreenHat:</b> "
+            "a sensor pin isn't driven, so a GreenHat input on it floats HIGH and a THROWN turnout pulses. "
+            "Inputs 3.3 V at most; a contact to GND with pull-up and active LOW is the usual wiring (a 1 k&Omega; "
+            "series resistor protects the pin). A channel switched back to turnout starts THROWN.</p>"
+            "<button type=submit>Save channels</button></form></fieldset>");
 }
 
 void behaviourSection(String& body) {
@@ -119,6 +151,10 @@ void behaviourSection(String& body) {
   web::field(body, "Stagger", "stagger", "number", number, "(ms between any two changes, 0-5000)");
   snprintf(number, sizeof(number), "%u", behaviour.minIntervalMs);
   web::field(body, "Minimum interval", "interval", "number", number, "(ms between two changes of one turnout, 0-10000)");
+  body += F("<label><input type=checkbox name=feedback value=on style='width:auto'");
+  if (behaviour.feedback) body += F(" checked");
+  body += F("> Feedback <span class=hint>(publish each turnout's pin state on track/turnout/&lt;name&gt;/state, "
+            "for JMRI's MONITORING mode)</span></label>");
   body += F("<button type=submit>Save behaviour</button></form></fieldset>");
 }
 
@@ -182,7 +218,7 @@ void handleRoot() {
     body += F("</p>");
     g_notice = "";
   }
-  turnoutsSection(body);
+  channelsSection(body);
   behaviourSection(body);
   networkSection(body);
   adminSection(body);
@@ -193,19 +229,33 @@ void handleRoot() {
 void handleNames() {
   if (!formAccepted()) return;
   WebServer& server = web::server();
-  String values[tc::kChannelCount];
-  const char* fields[tc::kChannelCount];
+  String nameValues[tc::kChannelCount], modeValues[tc::kChannelCount], pullValues[tc::kChannelCount],
+      lowValues[tc::kChannelCount];
+  const char* nameFields[tc::kChannelCount];
+  const char* modeFields[tc::kChannelCount];
+  const char* pullFields[tc::kChannelCount];
+  const char* lowFields[tc::kChannelCount];
   for (uint8_t i = 0; i < tc::kChannelCount; ++i) {
-    values[i] = server.arg(String("n") + (i + 1));
-    fields[i] = values[i].c_str();
+    const String n(i + 1);
+    nameValues[i] = server.arg("n" + n);
+    modeValues[i] = server.arg("m" + n);
+    pullValues[i] = server.arg("p" + n);
+    lowValues[i] = server.arg("a" + n);
+    nameFields[i] = nameValues[i].c_str();
+    modeFields[i] = modeValues[i].c_str();
+    pullFields[i] = pullValues[i].c_str();
+    lowFields[i] = lowValues[i].c_str();
   }
   tc::TurnoutNames names;
+  tc::ChannelConfig channels;
   const char* error = nullptr;
-  if (!tc::parseTurnoutNames(fields, &names, &error)) {
-    notice(String("Names not saved: ") + error, true);
+  if (!tc::parseTurnoutNames(nameFields, &names, &error)) {
+    notice(String("Channels not saved: ") + error, true);
+  } else if (!tc::parseChannelForm(modeFields, pullFields, lowFields, &channels, &error)) {
+    notice(String("Channels not saved: ") + error, true);
   } else {
-    net::applyTurnoutNames(names);
-    notice("Turnout names saved; MQTT resubscribed.", false);
+    app::applyChannels(names, channels);
+    notice("Channels saved; MQTT resubscribed.", false);
   }
   web::redirect("/");
 }
@@ -217,6 +267,8 @@ void handleTurnout() {
   const char last = set.length() > 0 ? set[set.length() - 1] : '\0';
   if (channel < 1 || channel > tc::kChannelCount || (last != 'c' && last != 't')) {
     notice("Unknown test button.", true);
+  } else if (bank::isSensorChannel(static_cast<uint8_t>(channel))) {
+    notice(String("Channel ") + channel + " is a sensor: not driven.", true);
   } else {
     const tc::TurnoutState state = last == 'c' ? tc::TurnoutState::Closed : tc::TurnoutState::Thrown;
     app::setTurnoutLocal(static_cast<uint8_t>(channel), state);
@@ -229,11 +281,11 @@ void handleBehaviour() {
   if (!formAccepted()) return;
   WebServer& server = web::server();
   const String startup = server.arg("startup"), offline = server.arg("offline"), stagger = server.arg("stagger"),
-               interval = server.arg("interval");
+               interval = server.arg("interval"), feedback = server.arg("feedback");
   tc::Behaviour behaviour;
   const char* error = nullptr;
-  if (!tc::parseBehaviourForm(startup.c_str(), offline.c_str(), stagger.c_str(), interval.c_str(), &behaviour,
-                              &error)) {
+  if (!tc::parseBehaviourForm(startup.c_str(), offline.c_str(), stagger.c_str(), interval.c_str(), feedback.c_str(),
+                              &behaviour, &error)) {
     notice(String("Behaviour not saved: ") + error, true);
   } else if (!app::setBehaviour(behaviour)) {
     notice("Behaviour applied, but not saved to flash: it lasts until power-off.", true);

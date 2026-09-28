@@ -8,6 +8,7 @@
 #include "app.h"
 #include "behaviour.h"
 #include "channels.h"
+#include "channel_config.h"
 #include "command.h"
 #include "health.h"
 #include "jmri_protocol.h"
@@ -23,7 +24,7 @@ namespace {
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.5.2-phase5";
+const char* const kFirmwareVersion = "0.6.0-phase6";
 const uint32_t kButtonPollMs = 50;
 const uint32_t kWatchdogFeedMs = 1000;
 // Levels go to flash this long after the last change, so a burst of
@@ -61,6 +62,9 @@ bool g_ledStateKnown = false;
 tc::Rgb g_ledShown = {0, 0, 0};
 bool g_ledShownKnown = false;
 tc::ButtonTracker g_button;
+
+// Sensor channels, debounced.
+tc::SensorDebouncer g_sensors;
 uint32_t g_lastButtonPollMs = 0;
 
 // PM1 watchdog: off by default. "hang" stops feeding it, for the bench
@@ -136,9 +140,18 @@ void printFiveVolt() {
 
 void printStatus() {
   Serial.println("ch  gpio  state   pad");
+  const tc::ChannelConfig& channels = bank::channelConfig();
   for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
-    Serial.printf("%2u  G%-3u %-7s %s\n", channel, tc::kChannelGpio[channel - 1],
-                  tc::stateName(bank::state(channel)), bank::padLevel(channel) ? "HIGH" : "LOW");
+    if (bank::isSensorChannel(channel)) {
+      const bool active = tc::sensorActive(g_sensors.level(channel), tc::sensorActiveLow(channels, channel));
+      Serial.printf("%2u  G%-3u %-8s %s  (sensor, %s%s)\n", channel, tc::kChannelGpio[channel - 1],
+                    active ? "ACTIVE" : "INACTIVE", bank::padLevel(channel) ? "HIGH" : "LOW",
+                    tc::sensorPullName(tc::sensorPull(channels, channel)),
+                    tc::sensorActiveLow(channels, channel) ? ", active LOW" : "");
+    } else {
+      Serial.printf("%2u  G%-3u %-7s %s\n", channel, tc::kChannelGpio[channel - 1],
+                    tc::stateName(bank::state(channel)), bank::padLevel(channel) ? "HIGH" : "LOW");
+    }
   }
   Serial.printf("pin latch (hold): %s\n", onOff(bank::holdEnabled()));
   printFiveVolt();
@@ -162,8 +175,12 @@ void printBootReport() {
   // esp_timer appears to count from chip reset (these times grow with the
   // firmware image size), so they include the bootloader, which checks the
   // whole image before starting it.
-  Serial.printf("pins first driven %lld us after chip reset, %s\n", static_cast<long long>(boot.drivenAtUs),
-                boot.restored ? "to the levels in RTC memory" : "all LOW (power cut: RTC memory empty)");
+  if (boot.restored) {
+    Serial.printf("pins first driven %lld us after chip reset, to the levels in RTC memory\n",
+                  static_cast<long long>(boot.drivenAtUs));
+  } else {
+    Serial.println("pins not driven until the startup policy (power cut: RTC memory empty, 5VOUT off)");
+  }
   Serial.printf("startup %s, at %lld us after reset", levelSourceName(boot.source),
                 static_cast<long long>(boot.startupAtUs));
   if (boot.changedAtStartup != 0) {
@@ -220,6 +237,10 @@ void printHelp() {
 void applyToChannels(uint16_t mask, tc::CommandType type) {
   for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
     if (!(mask & (1u << (channel - 1)))) continue;
+    if (bank::isSensorChannel(channel)) {
+      Serial.printf("%u is a sensor: not driven\n", channel);
+      continue;
+    }
     tc::TurnoutState target;
     if (type == tc::CommandType::Close) {
       target = tc::TurnoutState::Closed;
@@ -480,6 +501,7 @@ void printBehaviour() {
   Serial.printf("offline: %s\n", tc::offlinePolicyName(g_behaviour.offline));
   Serial.printf("stagger: %u ms\n", g_behaviour.staggerMs);
   Serial.printf("interval: %u ms\n", g_behaviour.minIntervalMs);
+  Serial.printf("feedback: %s\n", g_behaviour.feedback ? "on (.../state)" : "off");
   if (g_haveSavedLevels) {
     printLevels("levels saved in flash:", g_savedLevels);
   } else {
@@ -503,6 +525,10 @@ void configure(const tc::Command& command) {
       break;
     case tc::ConfigKey::Interval:
       g_behaviour.minIntervalMs = static_cast<uint16_t>(command.configValue);
+      break;
+    case tc::ConfigKey::Feedback:
+      g_behaviour.feedback = command.configValue != 0;
+      net::setFeedback(g_behaviour.feedback);
       break;
   }
   g_scheduler.configure(g_behaviour.staggerMs, g_behaviour.minIntervalMs);
@@ -609,12 +635,36 @@ void pollButton() {
   }
 }
 
+// Starts every sensor channel at its current level, and publishes it.
+void startSensors() {
+  const tc::ChannelConfig& channels = bank::channelConfig();
+  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+    if (!bank::isSensorChannel(channel)) continue;
+    const bool level = bank::padLevel(channel);
+    g_sensors.reset(channel, level);
+    net::setSensorState(channel, tc::sensorActive(level, tc::sensorActiveLow(channels, channel)));
+  }
+}
+
+void pollSensors() {
+  const tc::ChannelConfig& channels = bank::channelConfig();
+  if (channels.sensorMask == 0) return;
+  for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
+    if (!bank::isSensorChannel(channel)) continue;
+    if (!g_sensors.update(channel, bank::padLevel(channel), millis())) continue;
+    const bool active = tc::sensorActive(g_sensors.level(channel), tc::sensorActiveLow(channels, channel));
+    stamp();
+    Serial.printf("sensor %s (ch%u) %s\n", net::turnoutName(channel), channel, active ? "ACTIVE" : "INACTIVE");
+    net::setSensorState(channel, active);
+  }
+}
+
 }  // namespace
 
 namespace app {
 
 void setTurnoutLocal(uint8_t channel, tc::TurnoutState state) {
-  if (channel < 1 || channel > tc::kChannelCount) return;
+  if (channel < 1 || channel > tc::kChannelCount || bank::isSensorChannel(channel)) return;
   bank::setState(channel, state);
   g_scheduler.noteApplied(channel, millis());
   stamp();
@@ -628,16 +678,25 @@ const tc::Behaviour& behaviour() { return g_behaviour; }
 bool setBehaviour(const tc::Behaviour& behaviour) {
   g_behaviour = behaviour;
   g_scheduler.configure(g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+  net::setFeedback(g_behaviour.feedback);
   stamp();
-  Serial.printf("web: behaviour startup %s, offline %s, stagger %u ms, interval %u ms\n",
+  Serial.printf("web: behaviour startup %s, offline %s, stagger %u ms, interval %u ms, feedback %s\n",
                 tc::startupLevelName(g_behaviour.startup), tc::offlinePolicyName(g_behaviour.offline),
-                g_behaviour.staggerMs, g_behaviour.minIntervalMs);
+                g_behaviour.staggerMs, g_behaviour.minIntervalMs, g_behaviour.feedback ? "on" : "off");
   return settings::saveBehaviour(g_behaviour);
+}
+
+void applyChannels(const tc::TurnoutNames& names, const tc::ChannelConfig& channels) {
+  net::applyChannels(names, channels);
+  startSensors();
+  g_lastLevels = bank::levels();
 }
 
 void factoryReset() {
   stamp();
-  Serial.println("factory reset: erasing saved settings; pins keep their levels");
+  Serial.println("factory reset: erasing saved settings; pins keep their levels, channel modes stay");
+  // While MQTT is still up: clear the retained feedback states.
+  net::setFeedback(false);
   // net::forget() stops MQTT first, so the turnout names can be reset.
   net::forget();
   settings::factoryReset();
@@ -683,7 +742,7 @@ void readConsole() {
 extern "C" void initVariant() {
   g_behaviour = settings::loadBehaviour();
   g_haveSavedLevels = settings::loadLevels(&g_savedLevels);
-  bank::applyStartup(g_behaviour.startup, g_haveSavedLevels, g_savedLevels);
+  bank::applyStartup(g_behaviour.startup, g_haveSavedLevels, g_savedLevels, settings::loadChannelConfig());
 }
 
 void setup() {
@@ -713,6 +772,8 @@ void setup() {
   if (watchdogWasOn) Serial.printf("PM1 watchdog was running (%u s left); turned off\n", watchdogLeft);
   if (!g_ledReady) Serial.println("status LED: not available (PM1)");
   Serial.println("type help for commands");
+  net::setFeedback(g_behaviour.feedback);
+  startSensors();
   net::begin(kFirmwareVersion);
 }
 
@@ -727,6 +788,7 @@ void loop() {
   web::loop();
   updateLed();
   pollButton();
+  pollSensors();
   feedWatchdog();
   delay(1);
 }

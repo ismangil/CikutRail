@@ -82,6 +82,16 @@ bool validateTurnoutNames(const char* const* names, uint8_t count, const char** 
   return message == nullptr;
 }
 
+bool turnoutStateTopic(const char* channel, const char* name, char* out, size_t size) {
+  const int written = snprintf(out, size, "%s%s%s/state", channel, kTurnoutPrefix, name);
+  return written >= 0 && static_cast<size_t>(written) < size;
+}
+
+bool sensorTopic(const char* channel, const char* name, char* out, size_t size) {
+  const int written = snprintf(out, size, "%strack/sensor/%s", channel, name);
+  return written >= 0 && static_cast<size_t>(written) < size;
+}
+
 JmriState parseJmriState(const char* data, size_t length) {
   return data != nullptr && payloadIs(data, length, "OFFLINE") ? JmriState::Offline : JmriState::Other;
 }

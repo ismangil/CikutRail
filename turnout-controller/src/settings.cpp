@@ -17,6 +17,7 @@ const char kPortalNamespace[] = "portal";
 const char kBehaviourNamespace[] = "behave";
 const char kLevelsNamespace[] = "turnouts";
 const char kNamesNamespace[] = "names";
+const char kChannelsNamespace[] = "channels";
 const uint8_t kApPasswordLength = 10;
 // No 0/O, 1/l/i: easy to read off a console and type on a phone.
 const char kApPasswordAlphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -155,6 +156,7 @@ tc::Behaviour loadBehaviour() {
   if (prefs.getUChar("offline", 0) == static_cast<uint8_t>(tc::OfflinePolicy::Low)) {
     behaviour.offline = tc::OfflinePolicy::Low;
   }
+  behaviour.feedback = prefs.getBool("feedback", false);
   const uint16_t stagger = prefs.getUShort("stagger", 0);
   const uint16_t interval = prefs.getUShort("interval", 0);
   prefs.end();
@@ -169,7 +171,30 @@ bool saveBehaviour(const tc::Behaviour& behaviour) {
   const bool ok = prefs.putUChar("startup", static_cast<uint8_t>(behaviour.startup)) > 0 &&
                   prefs.putUChar("offline", static_cast<uint8_t>(behaviour.offline)) > 0 &&
                   prefs.putUShort("stagger", behaviour.staggerMs) > 0 &&
-                  prefs.putUShort("interval", behaviour.minIntervalMs) > 0;
+                  prefs.putUShort("interval", behaviour.minIntervalMs) > 0 &&
+                  prefs.putBool("feedback", behaviour.feedback) > 0;
+  prefs.end();
+  return ok;
+}
+
+tc::ChannelConfig loadChannelConfig() {
+  tc::ChannelConfig channels = tc::defaultChannelConfig();
+  Preferences prefs;
+  if (!prefs.begin(kChannelsNamespace, true)) return channels;
+  channels.sensorMask = prefs.getUShort("sensors", 0);
+  channels.pullUpMask = prefs.getUShort("pullup", 0);
+  channels.pullDownMask = prefs.getUShort("pulldown", 0);
+  channels.activeLowMask = prefs.getUShort("actlow", 0);
+  prefs.end();
+  return tc::normalised(channels);
+}
+
+bool saveChannelConfig(const tc::ChannelConfig& channels) {
+  const tc::ChannelConfig c = tc::normalised(channels);
+  Preferences prefs;
+  if (!prefs.begin(kChannelsNamespace, false)) return false;
+  const bool ok = prefs.putUShort("sensors", c.sensorMask) > 0 && prefs.putUShort("pullup", c.pullUpMask) > 0 &&
+                  prefs.putUShort("pulldown", c.pullDownMask) > 0 && prefs.putUShort("actlow", c.activeLowMask) > 0;
   prefs.end();
   return ok;
 }

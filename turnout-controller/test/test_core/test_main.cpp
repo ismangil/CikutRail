@@ -4,6 +4,7 @@
 
 #include "behaviour.h"
 #include "channels.h"
+#include "channel_config.h"
 #include "command.h"
 #include "health.h"
 #include "jmri_protocol.h"
@@ -687,20 +688,25 @@ void test_parse_turnout_names() {
 void test_parse_behaviour_form() {
   Behaviour b;
   const char* error = nullptr;
-  TEST_ASSERT_TRUE_MESSAGE(parseBehaviourForm("low", "low", "250", "3000", &b, &error), error);
+  TEST_ASSERT_TRUE_MESSAGE(parseBehaviourForm("low", "low", "250", "3000", "", &b, &error), error);
   TEST_ASSERT_TRUE(b.startup == StartupLevel::Low && b.offline == OfflinePolicy::Low);
   TEST_ASSERT_EQUAL_UINT16(250, b.staggerMs);
   TEST_ASSERT_EQUAL_UINT16(3000, b.minIntervalMs);
-  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "0", "0", &b, &error));
+  TEST_ASSERT_FALSE(b.feedback);
+  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "0", "0", "on", &b, &error));
+  TEST_ASSERT_TRUE(b.feedback);
+  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "0", "0", nullptr, &b, &error));
+  TEST_ASSERT_FALSE(b.feedback);
+  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "0", "0", "", &b, &error));
   TEST_ASSERT_TRUE(b.startup == StartupLevel::Restore && b.offline == OfflinePolicy::Hold);
   TEST_ASSERT_EQUAL_UINT16(0, b.staggerMs);
-  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "5000", "10000", &b, &error));
-  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "5001", "0", &b, &error));
-  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "0", "10001", &b, &error));
-  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "", "0", &b, &error));
-  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "-5", "0", &b, &error));
-  TEST_ASSERT_FALSE(parseBehaviourForm("Restore", "hold", "0", "0", &b, &error));
-  TEST_ASSERT_FALSE(parseBehaviourForm("restore", nullptr, "0", "0", &b, &error));
+  TEST_ASSERT_TRUE(parseBehaviourForm("restore", "hold", "5000", "10000", "", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "5001", "0", "", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "0", "10001", "", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "", "0", "", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", "hold", "-5", "0", "", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("Restore", "hold", "0", "0", "", &b, &error));
+  TEST_ASSERT_FALSE(parseBehaviourForm("restore", nullptr, "0", "0", "", &b, &error));
   TEST_ASSERT_NOT_NULL(error);
 }
 
@@ -798,6 +804,118 @@ void test_watchdog_commands() {
   TEST_ASSERT_FALSE(parseCommand("wdt 30 now").ok);
 }
 
+
+// --- phase 6: feedback, sensors ---
+
+void test_feedback_and_sensor_topics() {
+  char topic[kMaxTopicLength + 1];
+  TEST_ASSERT_TRUE(turnoutStateTopic("", "101", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("track/turnout/101/state", topic);
+  TEST_ASSERT_TRUE(turnoutStateTopic("/trains/", "101", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("/trains/track/turnout/101/state", topic);
+  TEST_ASSERT_TRUE(sensorTopic("", "105", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_STRING("track/sensor/105", topic);
+  TEST_ASSERT_EQUAL_STRING("ACTIVE", sensorPayload(true));
+  TEST_ASSERT_EQUAL_STRING("INACTIVE", sensorPayload(false));
+  // A feedback topic never matches the command topic.
+  const char* const names[kChannelCount] = {"101", "", "", "", "", "", "", "", "", "", ""};
+  TEST_ASSERT_TRUE(turnoutStateTopic("", "101", topic, sizeof(topic)));
+  TEST_ASSERT_EQUAL_UINT8(0, matchTurnoutTopic("", names, kChannelCount, topic, strlen(topic)));
+}
+
+void test_channel_config_modes() {
+  ChannelConfig config = defaultChannelConfig();
+  TEST_ASSERT_TRUE(channelMode(config, 1) == ChannelMode::Turnout);
+  config.sensorMask = 0x0010;     // channel 5
+  config.pullUpMask = 0x0011;     // channel 1 (a turnout) and 5
+  config.pullDownMask = 0x0010;   // both pulls on 5: pull-up wins
+  config.activeLowMask = 0x0012;  // channel 2 (a turnout) and 5
+  config = normalised(config);
+  TEST_ASSERT_EQUAL_HEX16(0x0010, config.sensorMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0010, config.pullUpMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0000, config.pullDownMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0010, config.activeLowMask);
+  TEST_ASSERT_TRUE(channelMode(config, 5) == ChannelMode::Sensor);
+  TEST_ASSERT_TRUE(sensorPull(config, 5) == SensorPull::Up);
+  TEST_ASSERT_TRUE(sensorPull(config, 1) == SensorPull::None);
+  TEST_ASSERT_TRUE(sensorActiveLow(config, 5));
+  TEST_ASSERT_FALSE(sensorActiveLow(config, 2));
+  TEST_ASSERT_TRUE(channelMode(config, 0) == ChannelMode::Turnout);
+  TEST_ASSERT_TRUE(channelMode(config, 12) == ChannelMode::Turnout);
+  TEST_ASSERT_TRUE(sensorActive(false, true));   // active LOW, pin LOW
+  TEST_ASSERT_FALSE(sensorActive(true, true));
+  TEST_ASSERT_TRUE(sensorActive(true, false));
+}
+
+void test_channel_form() {
+  const char* modes[kChannelCount] = {"turnout", "turnout", "turnout", "sensor", "sensor",  "turnout",
+                                      "turnout", "turnout", "turnout", "turnout", "turnout"};
+  const char* pulls[kChannelCount] = {"up", "", "", "up", "down", "", "", "", "", "", ""};
+  const char* low[kChannelCount] = {"on", "", "", "on", "", "", "", "", "", "", ""};
+  ChannelConfig config;
+  const char* error = nullptr;
+  TEST_ASSERT_TRUE_MESSAGE(parseChannelForm(modes, pulls, low, &config, &error), error);
+  TEST_ASSERT_EQUAL_HEX16(0x0018, config.sensorMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0008, config.pullUpMask);   // channel 1's pull dropped: a turnout
+  TEST_ASSERT_EQUAL_HEX16(0x0010, config.pullDownMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0008, config.activeLowMask);
+  const char* badMode[kChannelCount] = {"output", "turnout", "turnout", "turnout", "turnout", "turnout",
+                                        "turnout", "turnout", "turnout", "turnout", "turnout"};
+  TEST_ASSERT_FALSE(parseChannelForm(badMode, pulls, low, &config, &error));
+  const char* badPull[kChannelCount] = {"sideways", "", "", "", "", "", "", "", "", "", ""};
+  TEST_ASSERT_FALSE(parseChannelForm(modes, badPull, low, &config, &error));
+  TEST_ASSERT_NOT_NULL(error);
+}
+
+void test_sensor_debouncer() {
+  SensorDebouncer debouncer(50);
+  debouncer.reset(4, true);
+  TEST_ASSERT_TRUE(debouncer.level(4));
+  TEST_ASSERT_FALSE(debouncer.update(4, false, 1000));  // change starts
+  TEST_ASSERT_FALSE(debouncer.update(4, false, 1049));
+  TEST_ASSERT_TRUE(debouncer.update(4, false, 1050));   // steady for 50 ms
+  TEST_ASSERT_FALSE(debouncer.level(4));
+  TEST_ASSERT_FALSE(debouncer.update(4, false, 2000));  // no new change
+  // A short glitch doesn't count.
+  TEST_ASSERT_FALSE(debouncer.update(4, true, 3000));
+  TEST_ASSERT_FALSE(debouncer.update(4, false, 3020));
+  TEST_ASSERT_FALSE(debouncer.update(4, false, 3100));
+  TEST_ASSERT_FALSE(debouncer.level(4));
+  // Contact bounce: flips until it settles, then one change.
+  TEST_ASSERT_FALSE(debouncer.update(4, true, 4000));
+  TEST_ASSERT_FALSE(debouncer.update(4, false, 4005));
+  TEST_ASSERT_FALSE(debouncer.update(4, true, 4010));
+  TEST_ASSERT_FALSE(debouncer.update(4, true, 4059));
+  TEST_ASSERT_TRUE(debouncer.update(4, true, 4060));
+  TEST_ASSERT_FALSE(debouncer.update(0, true, 5000));
+}
+
+void test_snapshot_sensor_layout() {
+  LevelSnapshot snapshot;
+  snapshotWrite(&snapshot, 0x001F, true, 0, 0x0018, 0x0008, 0x0010);
+  TEST_ASSERT_TRUE(snapshotValid(snapshot));
+  TEST_ASSERT_EQUAL_HEX16(0x0007, snapshot.levels);  // sensor channels never carry a level
+  TEST_ASSERT_EQUAL_HEX16(0x0018, snapshot.sensorMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0008, snapshot.pullUpMask);
+  TEST_ASSERT_EQUAL_HEX16(0x0010, snapshot.pullDownMask);
+  LevelSnapshot bad = snapshot;
+  bad.sensorMask ^= 0x0001;
+  TEST_ASSERT_FALSE(snapshotValid(bad));
+  // An old-format record (magic "CRL1") is rejected.
+  bad = snapshot;
+  bad.magic = 0x43524C31;
+  TEST_ASSERT_FALSE(snapshotValid(bad));
+}
+
+void test_config_feedback_command() {
+  ParseResult r = parseCommand("config feedback on");
+  TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Feedback && r.command.configValue == 1);
+  r = parseCommand("config feedback OFF");
+  TEST_ASSERT_TRUE(r.ok && r.command.configValue == 0);
+  TEST_ASSERT_FALSE(parseCommand("config feedback maybe").ok);
+  TEST_ASSERT_FALSE(defaultBehaviour().feedback);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_default_channel_table_is_valid);
@@ -847,5 +965,11 @@ int main() {
   RUN_TEST(test_led_colours_and_blinking);
   RUN_TEST(test_button_tracker);
   RUN_TEST(test_watchdog_commands);
+  RUN_TEST(test_feedback_and_sensor_topics);
+  RUN_TEST(test_channel_config_modes);
+  RUN_TEST(test_channel_form);
+  RUN_TEST(test_sensor_debouncer);
+  RUN_TEST(test_snapshot_sensor_layout);
+  RUN_TEST(test_config_feedback_command);
   return UNITY_END();
 }

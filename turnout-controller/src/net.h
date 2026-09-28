@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "jmri_protocol.h"
+#include "channel_config.h"
 #include "net_config.h"
 
 namespace net {
@@ -34,9 +35,19 @@ void loop();
 // Wi-Fi and joins again with these.
 void applyConfig(const tc::NetConfig& config);
 
-// New turnout names (the config page): stops MQTT, saves them, and
-// subscribes again. Channels that lose their name keep their pin level.
+// New channel names and modes (the config page): clears the retained
+// topics a channel leaves behind, stops MQTT, saves and applies them, and
+// subscribes again. Turnouts that lose their name keep their pin level.
+void applyChannels(const tc::TurnoutNames& names, const tc::ChannelConfig& channels);
 void applyTurnoutNames(const tc::TurnoutNames& names);
+
+// Feedback: publish each turnout's pin state on <channel>track/turnout/
+// <name>/state, retained. Turning it off clears those retained states.
+void setFeedback(bool on);
+
+// A sensor channel's debounced state; published (retained) when it
+// changes, and all of them on each MQTT connect.
+void setSensorState(uint8_t channel, bool active);
 
 // Erases the saved settings, leaves the network and opens the portal.
 void forget();

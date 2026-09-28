@@ -4,6 +4,7 @@
 #pragma once
 
 #include "behaviour.h"
+#include "channel_config.h"
 #include "net_config.h"
 
 namespace settings {
@@ -21,6 +22,11 @@ bool forgetNet();
 // Behaviour settings (console "config"); defaults if nothing is saved.
 tc::Behaviour loadBehaviour();
 bool saveBehaviour(const tc::Behaviour& behaviour);
+
+// Channel modes: turnout or sensor (with pull and active LOW). Defaults to
+// all turnouts. Kept through a factory reset: they follow the wiring.
+tc::ChannelConfig loadChannelConfig();
+bool saveChannelConfig(const tc::ChannelConfig& channels);
 
 // Turnout pin levels (bit i = channel i + 1 HIGH), for the startup
 // "restore" policy after a power cut. False if none are saved.
@@ -41,8 +47,9 @@ const char* const* turnoutNames();
 bool saveTurnoutNames(const tc::TurnoutNames& names);
 
 // Erases every saved setting except the setup access point password (so
-// it can still be joined): network, behaviour, levels, names, admin
-// password. Nothing is restarted; callers apply the defaults.
+// it can still be joined) and the channel modes (a sensor must never be
+// driven): network, behaviour, levels, names, admin password. Nothing is
+// restarted; callers apply the defaults.
 bool factoryReset();
 
 }  // namespace settings
