@@ -91,6 +91,56 @@ manual:
   to set the trimmer midway between the "magnet present" and "magnet
   away" readings.
 
+## Trackside option: Pololu digital distance sensor v2, 5 cm (#5460)
+
+Also on test, beside the Hall sensor. From the
+[Pololu product page](https://www.pololu.com/product/5460):
+
+- A small **lidar (VCSEL time-of-flight)** module with one digital
+  output: **LOW when an object is within range, HIGH otherwise**, driven
+  push-pull to the supply level. It says only *if* something is in range,
+  not how far.
+- 3.0-5.5 V supply, **30 mA typical**, 940 nm, update 142 Hz or better,
+  field of view about 10° (varies with reflectivity and light), detects
+  from under 1 mm out to 5 cm. Largely independent of reflectivity and
+  ambient light, though range drops for very dark objects.
+- **Hysteresis:** the output goes LOW at 50 mm or closer and back HIGH
+  only beyond 85 mm. Anything left within 85 mm after a detection (a
+  wall, a building) keeps it LOW, and anything within 50 mm of the face
+  holds it LOW from the start. Keep the line of sight clear.
+- **Remove the protective liner** over the sensor IC before testing.
+- Side-entry 3-pin JST SH connector: pin 1 GND (black), pin 2 VIN (red),
+  pin 3 OUT (white). Size 22.9 × 8.9 × 5.2 mm, one M2 mounting hole.
+- The jumpers set the variant; this one is digital 5 cm (0000). Solder
+  bridges can change it, for example 10 cm (0010) or the
+  higher-sensitivity versions (21 mm hysteresis, 66 Hz).
+
+**Wiring:** VIN to **3V3**, GND to GND, OUT to **G8** through 1 kΩ. Do
+**not** power it from 5VOUT: the output swings to the supply level, which
+would put 5 V on the pin. The 3V3 pad's current limit isn't checked here;
+30 mA should be fine, but confirm. Node config: channel 8 **sensor**,
+pull-up, **active LOW**, name `108` (`MS108`). The output is push-pull, so
+the pull-up is harmless but not needed.
+
+**Mounting:** the sensor looks sideways at the loco from beside the track.
+The 10° beam is a spot of about 0.175 × the distance (roughly 5 mm wide
+at 30 mm), so it marks a narrow position. It needs a clear opening in the
+platform edge or a building, with nothing behind within 85 mm. The loco
+body must come within 5 cm of the face; the sensor can sit at the
+roadbed edge.
+
+**Extra tests:**
+
+1. Short G8 to GND: `sensor 108 (ch8) ACTIVE`.
+2. With a hand, then the loco, find the distance where OUT goes LOW (up to
+   5 cm) and where it returns HIGH (85 mm). Try the loco's colours and
+   any dark stock.
+3. Slide the loco along the track and note the position window: how far
+   along the track the beam sees the loco.
+4. Check nothing nearby holds it LOW, with the track empty.
+5. Run the same JMRI stop test (`MS108`) and compare the stop position
+   with the Hall sensor.
+
 ## Mounting
 
 - Put the sensor against the underside of the roadbed at the stopping
@@ -146,6 +196,8 @@ than the debounce); a stopped loco stays ACTIVE.
 
 ## Open questions
 
+- Hall (under the track, needs a magnet) or the Pololu sensor (trackside,
+  no loco change): which gives the steadier, more precise stop?
 - Reed or the Waveshare Hall module: which is more reliable at the real
   gap, and is a 3 × 1 mm magnet strong enough for it?
 - Does a second sensor before the station (channels 8-11 are free) help
