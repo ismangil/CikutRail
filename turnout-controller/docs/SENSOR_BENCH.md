@@ -62,11 +62,30 @@ manual:
   revisions). Measure yours. The 49E is the small black TO-92 part on the
   board's edge; its flat face is the sensing side, so aim that face at the
   magnet and put that part under the stopping point.
-- A small magnet is weak: my rough estimate for a 3 × 1 mm N52 disc is
-  tens of gauss at a few mm, a change of tens of mV on AOUT. If the
-  trimmer can't separate it from noise, use a bigger magnet (for example
-  5 × 2 mm) or a smaller gap. The wiki's own demo reads about 2.2-2.4 V
-  on AOUT with a magnet very close.
+- **Magnet: 2 × 1 mm N52 disc.** Estimated on-axis field and AOUT
+  shift, from the disc-magnet formula (Br about 1.45 T) and the 49E's
+  typical 1.4 mV/gauss scaled to a 3.3 V supply. These are estimates, not
+  measurements; the sensitivity isn't confirmed for this module.
+
+  | Gap (magnet face to the 49E) | Field | AOUT shift |
+  |---|---|---|
+  | 2 mm | ~390 G | ~360 mV |
+  | 3 mm | ~155 G | ~145 mV |
+  | 4 mm | ~75 G | ~70 mV |
+  | 5 mm | ~42 G | ~40 mV |
+  | 6 mm | ~26 G | ~24 mV |
+  | 8 mm | ~12 G | ~11 mV |
+
+  Aim for 4-5 mm or less. Beyond about 8 mm the shift is near noise and
+  the comparator's offset; then use a bigger disc (for example 3 × 1.5 mm
+  or 5 × 2 mm). The 49E sits a little inside its package, so the real
+  gap is larger than the distance to the board edge, and it includes the
+  roadbed and the loco's ground clearance. The field also falls off fast
+  sideways, so at a 4 mm gap the loco may trigger only within a few mm of
+  the sensor. A lower threshold widens that window but leaves less margin.
+  The loco's chassis and motor may distort the field; test with the
+  magnet in place. Measure the real figures on the bench and replace the
+  table.
 - AOUT isn't used by the firmware (digital input only), but is useful on
   the bench: read it with a multimeter to see the field at each gap and
   to set the trimmer midway between the "magnet present" and "magnet
