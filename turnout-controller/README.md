@@ -22,6 +22,7 @@ feedback and run channels as JMRI sensors. Firmware updates stay on USB.
 - [Phase 4 bench test](docs/PHASE4_BENCH.md): config page
 - [Phase 5 bench test](docs/PHASE5_BENCH.md): status LED, button, watchdog
 - [Phase 6 bench test](docs/PHASE6_BENCH.md): feedback and sensor mode
+- [Sensor experiment](docs/SENSOR_BENCH.md): loco stopping point with a magnet and reed/Hall sensor
 - Layout-wide topic rules: [../docs/MQTT_CONVENTIONS.md](../docs/MQTT_CONVENTIONS.md)
 
 ## Build
