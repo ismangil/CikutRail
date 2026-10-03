@@ -76,8 +76,8 @@ pin to GND, ideally through 1 kΩ.
 
 | Test | Result | Notes |
 |---|---|---|
-| 1 Boot after a power cut | | |
-| 2 Feedback on | | |
+| 1 Boot after a power cut | Pass | Run 1 (2026-09-29): power-on reset; pads all LOW, not driven until startup policy, 5VOUT off; ch1-3 restored CLOSED at 235 ms, then 5VOUT on; no turnout moved |
+| 2 Feedback on | Pass | Run 1: `config feedback on` published 101-103 CLOSED, 104-111 THROWN at once; retained for a new subscriber; no pin moved |
 | 3 Feedback follows the pin | | |
 | 4 JMRI MONITORING | | |
 | 5 Feedback off clears | | |
