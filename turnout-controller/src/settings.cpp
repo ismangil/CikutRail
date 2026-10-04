@@ -81,6 +81,15 @@ void readString(Preferences& prefs, const char* key, char* out, size_t size) {
   out[size - 1] = '\0';
 }
 
+// Optional fields may be empty, and putString returns 0 for both an empty
+// string and a failed write, so an empty value is stored by removing the
+// key (loadNet reads a missing key as empty); only non-empty values are
+// written, where 0 is a real failure.
+bool putOptionalString(Preferences& prefs, const char* key, const char* value) {
+  if (value[0] == '\0') return !prefs.isKey(key) || prefs.remove(key);
+  return prefs.putString(key, value) == strlen(value);
+}
+
 }  // namespace
 
 Source loadNet(tc::NetConfig* config) {
@@ -113,12 +122,19 @@ Source loadNet(tc::NetConfig* config) {
 bool saveNet(const tc::NetConfig& config) {
   Preferences prefs;
   if (!prefs.begin(kNetNamespace, false)) return false;
-  // ssid last: loadNet treats its presence as "settings saved".
-  const bool ok = prefs.putString("wpass", config.wifiPassword) == strlen(config.wifiPassword) &&
+  // loadNet treats the presence of "ssid" as "settings saved". Remove it
+  // first and write it last, so a failed or interrupted save leaves no
+  // half-updated record that looks committed (the node then falls back to
+  // the compiled-in settings or the setup page).
+  if (prefs.isKey("ssid") && !prefs.remove("ssid")) {
+    prefs.end();
+    return false;
+  }
+  const bool ok = putOptionalString(prefs, "wpass", config.wifiPassword) &&
                   prefs.putString("mhost", config.mqttHost) > 0 && prefs.putUShort("mport", config.mqttPort) > 0 &&
-                  prefs.putString("muser", config.mqttUser) == strlen(config.mqttUser) &&
-                  prefs.putString("mpass", config.mqttPassword) == strlen(config.mqttPassword) &&
-                  prefs.putString("chan", config.jmriChannel) == strlen(config.jmriChannel) &&
+                  putOptionalString(prefs, "muser", config.mqttUser) &&
+                  putOptionalString(prefs, "mpass", config.mqttPassword) &&
+                  putOptionalString(prefs, "chan", config.jmriChannel) &&
                   prefs.putString("node", config.nodeName) > 0 && prefs.putString("ssid", config.wifiSsid) > 0;
   prefs.end();
   return ok;

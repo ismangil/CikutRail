@@ -56,7 +56,7 @@ in [WIRING.md](WIRING.md)):
   that pulse short and can leave the turnout half-thrown. When set (to at
   least the trimmer's pulse length), a reversal is held back until the
   interval has passed. Only the latest command is kept.
-- **Output stage:** `direct` (default, pin level as on the Pi) or
+- **Output stage (not built yet):** `direct` (default, pin level as on the Pi) or
   `open-collector` (pin inverted, for a transistor stage between the node
   and the GreenHat; see WIRING.md).
 - **Button single-click reset:** disabled at startup, with double-click

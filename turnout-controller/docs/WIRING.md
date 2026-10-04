@@ -188,9 +188,10 @@ an N-MOSFET such as a 2N7002 with a gate pull-down, gives:
   so the line stays HIGH.
 
 The transistor inverts the signal (ESP32 HIGH pulls the input LOW). The
-firmware has an **output stage** setting, `direct` (default) or
-`open-collector`, and inverts the pin for you, so JMRI's CLOSED/THROWN
-meaning doesn't change.
+firmware does **not** yet have an output stage setting (see `PLAN.md`), so
+with a transistor stage CLOSED and THROWN are reversed unless you invert
+them in JMRI. Until the setting is built, drive the GreenHat directly or
+account for the inversion.
 
 Don't use the ESP32's own open-drain mode for this: the released pin
 would be pulled towards 5 V, beyond what the ESP32 pins tolerate.
