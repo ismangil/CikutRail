@@ -145,4 +145,44 @@ void draw(Arduino_GFX *g, const Model &m) {
     button(g, IDLE, "IDLE", 3, red, white, m.pressed == HitIdle);
 }
 
+void message(Arduino_GFX *g, const char *title, const String &body) {
+    g->fillScreen(g->color565(8, 10, 14));
+    g->setTextColor(g->color565(255, 176, 0));
+    g->setTextSize(2);
+    g->setCursor(4, 12);
+    g->print(title);
+    g->setTextColor(RGB565_WHITE);
+    g->setTextSize(1);
+    g->setCursor(4, 56);
+    g->print(body);
+}
+
+namespace {
+constexpr int PICK_Y0 = 8, PICK_H = 60, PICK_GAP = 4;
+Rect pickRect(int i) {
+    return {4, (int16_t)(PICK_Y0 + i * (PICK_H + PICK_GAP)), LCD_W - 8, PICK_H};
+}
+}  // namespace
+
+void picker(Arduino_GFX *g, const String *names, int n, int current) {
+    g->fillScreen(g->color565(8, 10, 14));
+    const int rows = n < PICK_ROWS ? n : PICK_ROWS;
+    for (int i = 0; i < rows; i++) {
+        const bool cur = (i == current);
+        char b[16];
+        strlcpy(b, names[i].c_str(), sizeof(b));
+        button(g, pickRect(i), b, 2, cur ? g->color565(40, 200, 90) : g->color565(34, 38, 46),
+               cur ? g->color565(8, 10, 14) : RGB565_WHITE, false);
+    }
+    button(g, pickRect(PICK_ROWS), "Cancel", 2, g->color565(60, 60, 60), RGB565_WHITE, false);
+}
+
+int pickerHit(int x, int y, int n) {
+    const int rows = n < PICK_ROWS ? n : PICK_ROWS;
+    for (int i = 0; i < rows; i++)
+        if (inside(pickRect(i), x, y)) return i;
+    if (inside(pickRect(PICK_ROWS), x, y)) return PICK_CANCEL;
+    return -1;
+}
+
 }  // namespace Ui

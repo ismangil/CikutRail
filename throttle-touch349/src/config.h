@@ -33,3 +33,7 @@ constexpr float   BATT_DIVIDER     = 3.0f;
 // Power: the demo holds the battery power latch with TCA9554 pin 6 and
 // reads the power button on GPIO 16. Not used by the bring-up sketch yet.
 constexpr int8_t  PWR_BUTTON_PIN = 16;
+
+// BOOT button: held at power-on it clears the Wi-Fi settings; while running
+// it is the e-stop.
+constexpr int8_t  BOOT_BUTTON_PIN = 0;

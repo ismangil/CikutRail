@@ -56,4 +56,14 @@ bool onThumb(const Model &m, int x, int y);
 
 void draw(Arduino_GFX *g, const Model &m);
 
+// Full-screen text for setup and connection progress.
+void message(Arduino_GFX *g, const char *title, const String &body);
+
+// Loco picker: one row per roster entry (the first PICK_ROWS), plus Cancel.
+constexpr int PICK_ROWS = 8;
+constexpr int PICK_CANCEL = -2;
+void picker(Arduino_GFX *g, const String *names, int n, int current);
+// Row index for a touch, PICK_CANCEL for the Cancel row, -1 for nothing.
+int pickerHit(int x, int y, int n);
+
 }  // namespace Ui

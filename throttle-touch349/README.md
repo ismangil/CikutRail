@@ -6,9 +6,15 @@ A second handheld Wi-Fi throttle for JMRI's WiThrottle server, on the
 [M5Stick throttle](../throttle-m5stick/) through
 [`../throttle-common/`](../throttle-common/). Plan and task list: issue #6.
 
-**Status: UI mock.** The main screen is drawn and works by touch on the board,
-with a fake GP40 and fake routes standing in for JMRI; nothing is sent to the
-layout yet. Display, touch and battery reading were checked on 2026-10-04.
+**Status: wired to JMRI, not yet run on the layout.** The main screen drives
+the loco, fires the first three JMRI routes and presses three of the loco's
+functions through the WiThrottle server. It builds; it has not been tried
+against JMRI yet. Display, touch and battery reading were checked on
+2026-10-04.
+
+First boot (or BOOT held at power-on) starts the Wi-Fi setup portal, the same
+as the M5Stick throttle: join `WiThrottle-XXXX` and open `http://192.168.4.1/`.
+The throttle then finds JMRI by mDNS, or uses the host and port you enter.
 
 ## Screen
 
@@ -25,7 +31,16 @@ slider with a numeric readout, and an IDLE button.
   slot 2 "beacon", slot 3 "uncouple", matched by label. Empty slots take the
   lowest-numbered unused functions. Functions labelled "uncouple" or "delayed"
   are momentary; the rest toggle.
-- The routes are the first three in JMRI's route list.
+- Function buttons send press on touch-down and release on touch-up; JMRI
+  decides from the roster whether the function latches or is momentary, and
+  the lit state follows what JMRI reports back.
+- The routes are the first three in JMRI's route list; the lit one is the
+  route JMRI reports active.
+- BOOT is the e-stop while running.
+- A long press (0.7 s) on the status strip opens the loco picker. Changing
+  loco sets the old one to speed 0 before releasing it. The last loco is
+  remembered and re-acquired at start-up; with none remembered, the picker
+  opens. The picker shows the first 8 roster entries.
 
 ## Build
 
@@ -68,7 +83,7 @@ Still open: what BOOT does in the throttle.
 throttle-touch349/
 ├── platformio.ini
 └── src/
-    ├── main.cpp   touch state machine, mock loco
+    ├── main.cpp   app: link, loco, touch state machine
     ├── Ui.h / .cpp   drawing and hit-testing
     ├── Slider.h   slider maths (native-tested)
     └── config.h   pins and I2C addresses
