@@ -1,0 +1,46 @@
+name: throttle-m5stick
+
+on:
+  push:
+    paths:
+      - "throttle-m5stick/**"
+      - ".github/workflows/throttle-m5stick.yml"
+  pull_request:
+    paths:
+      - "throttle-m5stick/**"
+      - ".github/workflows/throttle-m5stick.yml"
+
+defaults:
+  run:
+    working-directory: throttle-m5stick
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('throttle-m5stick/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: pio run -e m5stick-c-plus2
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: throttle-m5stick-c-plus2
+          path: |
+            throttle-m5stick/.pio/build/m5stick-c-plus2/firmware.bin
+            throttle-m5stick/.pio/build/m5stick-c-plus2/bootloader.bin
+            throttle-m5stick/.pio/build/m5stick-c-plus2/partitions.bin

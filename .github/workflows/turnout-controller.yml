@@ -1,0 +1,49 @@
+name: turnout-controller
+
+on:
+  push:
+    paths:
+      - "turnout-controller/**"
+      - ".github/workflows/turnout-controller.yml"
+  pull_request:
+    paths:
+      - "turnout-controller/**"
+      - ".github/workflows/turnout-controller.yml"
+
+defaults:
+  run:
+    working-directory: turnout-controller
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('turnout-controller/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Unit tests (PC)
+        run: pio test -e native
+
+      - name: Build firmware
+        run: pio run -e stamp-s3bat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: turnout-controller-stamp-s3bat
+          path: |
+            turnout-controller/.pio/build/stamp-s3bat/firmware.bin
+            turnout-controller/.pio/build/stamp-s3bat/bootloader.bin
+            turnout-controller/.pio/build/stamp-s3bat/partitions.bin
