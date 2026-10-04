@@ -36,6 +36,7 @@ a signed speed readout, and an IDLE button.
 - The routes are the first three in JMRI's route list; the lit one is the
   route JMRI reports active.
 - BOOT is the e-stop while running.
+- Holding the power button for 2 s turns the board off (e-stop and speed 0 first). On battery it loses power; on USB it deep-sleeps. A press turns it back on.
 - A long press (0.7 s) on the status strip opens the loco picker. Changing
   loco sets the old one to speed 0 before releasing it. The last loco is
   remembered and re-acquired at start-up; with none remembered, the picker
@@ -57,7 +58,7 @@ projects use: Arduino_GFX 1.6.8 needs `esp32-hal-periman.h`, which Arduino-ESP32
 
 From Waveshare's demo repo
 ([waveshareteam/ESP32-S3-Touch-LCD-3.49](https://github.com/waveshareteam/ESP32-S3-Touch-LCD-3.49))
-and the Arduino_GFX source. Display, touch and the battery reading are confirmed on the board; the power button is not tried yet.
+and the Arduino_GFX source. Display, touch and the battery reading are confirmed on the board; the power button long press (off and on) is confirmed too.
 
 - **Display:** Arduino_GFX 1.6.8 has an `Arduino_AXS15231B` driver and a board
   entry for this exact pin set, so no custom driver is needed. The panel
@@ -72,7 +73,7 @@ and the Arduino_GFX source. Display, touch and the battery reading are confirmed
 - **Power button:** in the demo the TCA9554 expander pin 6 holds the battery
   power latch (drive it high to stay on, low to power off) and GPIO 16 reads
   the button. So firmware can read the button and can power the board off.
-  Not tried yet. The demo's button code is under `Examples/Arduino/07_BATT_PWR_Test`.
+  Confirmed on the board: the firmware sets the latch at boot and a 2 s hold powers off. The demo's button code is under `Examples/Arduino/07_BATT_PWR_Test`.
 
 Still open: what BOOT does in the throttle.
 

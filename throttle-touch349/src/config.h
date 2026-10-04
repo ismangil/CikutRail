@@ -30,8 +30,8 @@ constexpr int8_t  BOARD_SCL = 48;
 constexpr int8_t  BATT_ADC_PIN     = 4;
 constexpr float   BATT_DIVIDER     = 3.0f;
 
-// Power: the demo holds the battery power latch with TCA9554 pin 6 and
-// reads the power button on GPIO 16. Not used by the bring-up sketch yet.
+// Power: the battery latch is TCA9554 pin 6 (see main.cpp); the power button
+// is on GPIO 16, active low.
 constexpr int8_t  PWR_BUTTON_PIN = 16;
 
 // BOOT button: held at power-on it clears the Wi-Fi settings; while running

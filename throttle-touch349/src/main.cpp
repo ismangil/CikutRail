@@ -292,6 +292,65 @@ static void handleTouch(const Touch &t) {
     if (changed) needDraw = true;
 }
 
+// Power: the battery latch is TCA9554 pin 6 on the board I2C bus. It must be
+// driven high right after boot or the board dies when the power button is
+// released. Long press of the power button drops the latch (battery) and, on
+// USB where the board stays powered, falls back to deep sleep; the next press
+// powers it back on.
+static const uint8_t  TCA_ADDR = 0x20, TCA_OUT = 0x01, TCA_CFG = 0x03;
+static const uint8_t  PWR_LATCH_BIT = 6;
+static const uint32_t POWER_HOLD_MS = 2000;
+
+static void tcaUpdate(uint8_t reg, uint8_t bit, bool set) {
+    Wire1.beginTransmission(TCA_ADDR);
+    Wire1.write(reg);
+    if (Wire1.endTransmission(false) != 0) return;
+    if (Wire1.requestFrom((int)TCA_ADDR, 1) != 1) return;
+    uint8_t v = Wire1.read();
+    v = set ? (v | (1 << bit)) : (v & ~(1 << bit));
+    Wire1.beginTransmission(TCA_ADDR);
+    Wire1.write(reg);
+    Wire1.write(v);
+    Wire1.endTransmission();
+}
+
+static void powerInit() {
+    pinMode(PWR_BUTTON_PIN, INPUT_PULLUP);
+    Wire1.begin(BOARD_SDA, BOARD_SCL, 400000);
+    tcaUpdate(TCA_OUT, PWR_LATCH_BIT, true);    // level first, then make it an output
+    tcaUpdate(TCA_CFG, PWR_LATCH_BIT, false);
+}
+
+static void powerOff() {
+    if (app.locoAcquired) {
+        wit.emergencyStop(THROTTLE_SLOT);
+        setSpeed(0);
+    }
+    gfx->fillScreen(RGB565_BLACK);
+    gfx->flush();
+    digitalWrite(LCD_BL, LOW);
+    while (digitalRead(PWR_BUTTON_PIN) == LOW) delay(10);   // else sleep wakes at once
+    delay(50);
+    tcaUpdate(TCA_OUT, PWR_LATCH_BIT, false);   // battery: power drops here
+    delay(500);
+    // Still alive: on USB. Sleep until the button is pressed.
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)PWR_BUTTON_PIN, 0);
+    esp_deep_sleep_start();
+}
+
+static void checkPower() {
+    static bool armed = false;      // needs a release first, so the press that turned us on is ignored
+    static uint32_t downAt = 0;
+    if (digitalRead(PWR_BUTTON_PIN) == HIGH) {
+        armed = true;
+        downAt = 0;
+        return;
+    }
+    if (!armed) return;
+    if (!downAt) downAt = millis();
+    if (millis() - downAt >= POWER_HOLD_MS) powerOff();
+}
+
 static void checkEstop() {
     static bool wasLow = false;
     const bool low = digitalRead(BOOT_BUTTON_PIN) == LOW;
@@ -323,6 +382,7 @@ static void startProvisioning() {
 void setup() {
     Serial.begin(115200);
     pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
+    powerInit();
     pinMode(LCD_BL, OUTPUT);
     digitalWrite(LCD_BL, HIGH);
     if (!gfx->begin()) Serial.println("display init failed");
@@ -347,6 +407,7 @@ void loop() {
     static uint32_t lastBatt = 0;
     Touch t;
     const bool haveTouch = readTouch(t);
+    checkPower();
 
     if (mode == Mode::Provisioning) {
         Provision::tick();
