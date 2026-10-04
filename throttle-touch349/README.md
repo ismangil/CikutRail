@@ -7,8 +7,9 @@ A second handheld Wi-Fi throttle for JMRI's WiThrottle server, on the
 [`../throttle-common/`](../throttle-common/). Plan and task list: issue #6.
 
 **Status: bring-up only.** `src/main.cpp` draws a crosshair under the finger
-and logs the battery voltage. It builds, but has not been run on the board
-yet. There is no throttle UI yet.
+and logs the battery voltage. It is flashed and works on the board (display, touch
+and battery reading checked 2026-10-04; the crosshair follows the finger
+smoothly in all corners). There is no throttle UI yet.
 
 ## Build
 
@@ -26,7 +27,7 @@ projects use: Arduino_GFX 1.6.8 needs `esp32-hal-periman.h`, which Arduino-ESP32
 
 From Waveshare's demo repo
 ([waveshareteam/ESP32-S3-Touch-LCD-3.49](https://github.com/waveshareteam/ESP32-S3-Touch-LCD-3.49))
-and the Arduino_GFX source. Nothing here is confirmed on the board yet.
+and the Arduino_GFX source. Display, touch and the battery reading are confirmed on the board; the power button is not tried yet.
 
 - **Display:** Arduino_GFX 1.6.8 has an `Arduino_AXS15231B` driver and a board
   entry for this exact pin set, so no custom driver is needed. The panel
