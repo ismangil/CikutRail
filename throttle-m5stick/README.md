@@ -1,6 +1,8 @@
-# WiThrottleProtocol on M5StickC Plus 2 (with MiniEncoderC HAT)
+# Throttle: M5StickC Plus 2
 
-A complete portable WiThrottle throttle that runs on an
+The layout's handheld Wi-Fi throttle. It talks to JMRI's **WiThrottle**
+server over TCP (not MQTT; see
+[../docs/JMRI_WITHROTTLE.md](../docs/JMRI_WITHROTTLE.md)). It runs on an
 [M5StickC Plus 2](https://docs.m5stack.com/en/core/M5StickC%20PLUS2)
 with the [M5Stack MiniEncoderC HAT (SKU U157)](https://docs.m5stack.com/en/hat/MiniEncoderC%20Hat)
 plugged into the top 8-pin connector. Connects to JMRI (or any other
@@ -24,46 +26,27 @@ Press the HAT onto the 8-pin connector — no soldering. The HAT speaks I²C on
 The whole flow, from a fresh M5StickC Plus 2 to driving a loco, takes about
 five minutes.
 
-### 1. Install the toolchain
+### 1. Build and flash
 
-Pick one — both work. PlatformIO gives you headless builds and faster
-flashing; Arduino IDE has a friendlier UI for tweaking single files.
+Needs [PlatformIO](https://platformio.org/) (`pip install platformio`).
+WiThrottleProtocol (v1.1.27) and M5Unified (0.2.25) are pinned in
+`platformio.ini` and fetched on the first build.
 
-**PlatformIO** (recommended for repeat builds):
-
-Create `platformio.ini` in a folder containing a copy of this sketch:
-
-```ini
-[env:m5stickc-plus2]
-platform = espressif32
-board = m5stick-c-plus2          ; needs platform-espressif32 >= 6.6.0
-framework = arduino
-monitor_speed = 115200
-upload_speed = 1500000
-lib_deps =
-    m5stack/M5Unified
-    https://github.com/flash62au/WiThrottleProtocol.git
-build_flags = -DCORE_DEBUG_LEVEL=0
+```
+pio run -e m5stick-c-plus2 -t upload     build and flash over USB-C
+pio device monitor -e m5stick-c-plus2    serial console
 ```
 
-If your platform-espressif32 is older and doesn't have the `m5stick-c-plus2`
-board, use `board = m5stick-c-plus` and add
-`board_build.partitions = default.csv` — the binary is small enough.
+The `m5stick-c-plus2` board is defined in `boards/` because the pinned
+PlatformIO platform has no Plus 2 board of its own. It is the M5StickC
+definition with the Plus 2's 8 MB flash; M5Unified detects the real
+hardware at run time.
 
-**Arduino IDE 2.x**:
+### 2. First power-on
 
-1. Boards Manager → install **M5Stack** (the package by M5Stack
-   Technology Co.). Version 2.1.0 or newer adds the "M5StickC Plus 2" entry.
-2. Tools → Board → M5Stack → **M5StickC Plus 2**.
-3. Library Manager → install **M5Unified** and **WiThrottleProtocol**.
-4. Open `WiThrottleProtocol_M5StickCPlus2.ino`. The IDE compiles every `.h`
-   / `.cpp` in the sketch folder automatically.
-
-### 2. Flash the firmware
-
-USB-C, hold the power button (the red one) for ~2 s to power on, then upload
-from your IDE. Reset (six-second hold) if the bootloader doesn't catch the
-first time. You should see a "WiThrottle / M5StickC Plus 2" splash.
+USB-C, hold the power button (the red one) for ~2 s to power on, then
+upload. Reset (six-second hold) if the bootloader doesn't catch the first
+time. You should see a "WiThrottle / M5StickC Plus 2" splash.
 
 ### 3. Connect to your WiFi (first boot)
 
@@ -82,7 +65,7 @@ powering on — that clears the stored credentials.
 
 ### 4. Start JMRI's WiThrottle server
 
-In JMRI's main menu: **Tools → Throttles → Start WiThrottle Server**. JMRI
+See [../docs/JMRI_WITHROTTLE.md](../docs/JMRI_WITHROTTLE.md). JMRI
 advertises itself via mDNS, so the throttle finds it automatically on the
 same subnet. Make sure your JMRI host is on the same WiFi network and on
 **channel 10 or below** (the ESP32 can't see higher 2.4 GHz channels).
@@ -172,10 +155,33 @@ fold the server's view back into the local slider.
 ## Files
 
 ```
-WiThrottleProtocol_M5StickCPlus2.ino  state machine, setup() and loop()
-AppDelegate.h                          WiThrottleProtocolDelegate subclass
-UI.h / UI.cpp                          M5GFX rendering helpers
-EncoderHat.h / EncoderHat.cpp          I2C driver for the MiniEncoderC HAT
-Provision.h / Provision.cpp            SoftAP + captive portal + NVS
-config.h                               pin/I2C constants, NVS keys, tunables
+throttle-m5stick/
+├── platformio.ini
+├── boards/m5stick-c-plus2.json  board definition
+└── src/
+    ├── main.cpp                 state machine, setup() and loop()
+    ├── AppDelegate.h            WiThrottleProtocolDelegate subclass
+    ├── UI.h / UI.cpp            M5GFX rendering helpers
+    ├── EncoderHat.h / .cpp      I2C driver for the MiniEncoderC HAT
+    ├── Provision.h / .cpp       SoftAP + captive portal + NVS
+    └── config.h                 pin/I2C constants, NVS keys, tunables
 ```
+
+## History and licence
+
+Imported with its history from
+[flash62au/WiThrottleProtocol#1](https://github.com/flash62au/WiThrottleProtocol/pull/1).
+The code here is AGPL-3.0 like the rest of CikutRail. The
+WiThrottleProtocol library (CC BY-SA 4.0) is an external dependency
+fetched by PlatformIO, not copied in.
+
+## Not yet done
+
+- Layout test: drive the GP40, throw `MT101`-`MT111` from the Layout
+  screen, check F10/F11 against the uncoupling script (#4) and how the
+  function grid handles momentary functions.
+- Unit tests for the speed/direction maths, encoder acceleration and
+  reconnect backoff, moved into `lib/` like the turnout controller.
+- Shared code with the second throttle (#6) moves to `throttle-common/`
+  when that starts.
+- M5StickS3 support (reverted in the imported history).

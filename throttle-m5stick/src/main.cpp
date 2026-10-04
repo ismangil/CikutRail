@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 // WiThrottleProtocol portable throttle for M5StickC Plus 2 + MiniEncoderC HAT
 // (SKU U157).
 //

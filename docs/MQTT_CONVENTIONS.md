@@ -80,6 +80,7 @@ Every node publishes under its own node name, outside JMRI's topic tree:
 
 ## Future devices
 
-Throttles and other devices use JMRI's own MQTT topics where they exist
-(for example `cab/{n}/throttle`, `cab/{n}/direction`, `cab/{n}/function/{f}`)
-and add their rows to this document.
+Handheld throttles are the exception to MQTT: they use JMRI's **WiThrottle**
+server over TCP instead (see [JMRI_WITHROTTLE.md](JMRI_WITHROTTLE.md)).
+Other devices use JMRI's own MQTT topics where they exist (for example
+`cab/{n}/throttle`) and add their rows to this document.
