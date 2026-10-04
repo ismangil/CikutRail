@@ -3,7 +3,7 @@
 //   status strip   loco, link, battery
 //   3 route buttons (the sidings)
 //   3 function buttons
-//   centre-zero speed slider (touch the thumb and drag)
+//   up / down arrows around the signed speed (green forward, blue reverse)
 //   IDLE button
 //
 // Drawing and hit-testing only; the touch state machine is in main.cpp.
@@ -41,18 +41,13 @@ enum Hit : int {
     HitNone = -1,
     HitRoute0 = 0,                       // .. HitRoute0 + ROUTES - 1
     HitFn0 = ROUTES,                     // .. HitFn0 + FUNCS - 1
-    HitThumb = ROUTES + FUNCS,
+    HitUp = ROUTES + FUNCS,
+    HitDown,
     HitIdle,
     HitStatus,
 };
 
-// Slider track: the thumb centre travels between these y values.
-int sliderTop();
-int sliderBottom();
-int thumbCentreY(int speed);
-
 Hit hitTest(int x, int y);
-bool onThumb(const Model &m, int x, int y);
 
 void draw(Arduino_GFX *g, const Model &m);
 

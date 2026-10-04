@@ -18,13 +18,12 @@ The throttle then finds JMRI by mDNS, or uses the host and port you enter.
 
 ## Screen
 
-172 x 640 portrait, top to bottom: status strip (loco, link, battery), three
-route buttons (the sidings), three function buttons, a centre-zero speed
-slider with a numeric readout, and an IDLE button.
+172 x 640 portrait, top to bottom: status strip (loco name, green online / red struck out offline, battery), three
+route buttons (the sidings), three function buttons, up / down arrows around
+a signed speed readout, and an IDLE button.
 
-- The slider moves only when a touch starts on its thumb, so a slipped finger
-  cannot change speed. It snaps to 0 near the centre. Forward is green,
-  reverse is blue.
+- Each arrow press changes speed by 1 and repeats while held. Going down past
+  0 goes into reverse. Forward is green, reverse is blue (shown with a minus).
 - IDLE sets speed to 0 at once (no e-stop).
 - The three function buttons come from the loco's own JMRI function list
   (`throttle-common/src/FunctionSlots.h`): slot 1 prefers a "light" function,
@@ -85,7 +84,7 @@ throttle-touch349/
 └── src/
     ├── main.cpp   app: link, loco, touch state machine
     ├── Ui.h / .cpp   drawing and hit-testing
-    ├── Slider.h   slider maths (native-tested)
+    ├── Speed.h   speed step / clamp maths (native-tested)
     └── config.h   pins and I2C addresses
 └── test/test_logic/   native tests: `pio test -e native`
 ```

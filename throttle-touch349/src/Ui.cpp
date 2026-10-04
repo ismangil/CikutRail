@@ -1,6 +1,6 @@
 #include "Ui.h"
 
-#include "Slider.h"
+#include "Speed.h"
 #include "config.h"
 
 namespace Ui {
@@ -13,10 +13,10 @@ struct Rect { int16_t x, y, w, h; };
 constexpr Rect STATUS   = {0, 0, LCD_W, 28};
 constexpr int  ROUTE_Y0 = 34, ROUTE_H = 60, ROUTE_GAP = 4;
 constexpr int  FN_Y = 232, FN_H = 56, FN_W = 54, FN_GAP = 5;
-constexpr Rect SLIDER   = {0, 298, LCD_W, 254};
+constexpr Rect UP       = {4, 298, LCD_W - 8, 84};
+constexpr Rect SPEED    = {4, 386, LCD_W - 8, 86};
+constexpr Rect DOWN     = {4, 476, LCD_W - 8, 84 - 8};
 constexpr Rect IDLE     = {4, 560, LCD_W - 8, 76};
-constexpr int  THUMB_W = 96, THUMB_H = 56;
-constexpr int  THUMB_PAD = 10;   // extra grab area around the thumb
 
 constexpr Rect routeRect(int i) {
     return {4, (int16_t)(ROUTE_Y0 + i * (ROUTE_H + ROUTE_GAP)), LCD_W - 8, ROUTE_H};
@@ -50,30 +50,29 @@ void button(Arduino_GFX *g, const Rect &r, const char *s, uint8_t size,
     centredText(g, r, s, size, text);
 }
 
-}  // namespace
-
-int sliderTop()    { return SLIDER.y + 14 + THUMB_H / 2 + 20; }
-int sliderBottom() { return SLIDER.y + SLIDER.h - 14 - THUMB_H / 2 - 20; }
-int thumbCentreY(int speed) {
-    return Slider::yFromSpeed(speed, sliderTop(), sliderBottom());
+// Filled triangle on a button: up or down.
+void arrow(Arduino_GFX *g, const Rect &r, bool up, uint16_t fill, bool pressed) {
+    const uint16_t edge = c(g, 90, 90, 90);
+    g->fillRoundRect(r.x, r.y, r.w, r.h, 8, pressed ? edge : fill);
+    g->drawRoundRect(r.x, r.y, r.w, r.h, 8, edge);
+    const int cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const int hw = 34, hh = 18;
+    if (up) g->fillTriangle(cx, cy - hh, cx - hw, cy + hh, cx + hw, cy + hh, RGB565_WHITE);
+    else g->fillTriangle(cx, cy + hh, cx - hw, cy - hh, cx + hw, cy - hh, RGB565_WHITE);
 }
+
+}  // namespace
 
 Hit hitTest(int x, int y) {
     for (int i = 0; i < ROUTES; i++)
         if (inside(routeRect(i), x, y)) return (Hit)(HitRoute0 + i);
     for (int i = 0; i < FUNCS; i++)
         if (inside(fnRect(i), x, y)) return (Hit)(HitFn0 + i);
+    if (inside(UP, x, y)) return HitUp;
+    if (inside(DOWN, x, y)) return HitDown;
     if (inside(IDLE, x, y)) return HitIdle;
     if (inside(STATUS, x, y)) return HitStatus;
     return HitNone;
-}
-
-// The thumb needs the current speed, so it has its own test.
-bool onThumb(const Model &m, int x, int y) {
-    const int cy = thumbCentreY(m.speed);
-    const Rect t = {(int16_t)((LCD_W - THUMB_W) / 2), (int16_t)(cy - THUMB_H / 2),
-                    THUMB_W, THUMB_H};
-    return inside(t, x, y, THUMB_PAD);
 }
 
 void draw(Arduino_GFX *g, const Model &m) {
@@ -90,16 +89,18 @@ void draw(Arduino_GFX *g, const Model &m) {
 
     // Status strip
     g->setTextSize(2);
-    g->setTextColor(white);
+    // Loco name doubles as the link indicator: green online, red struck out offline.
+    const char *name = m.loco[0] ? m.loco : "no loco";
+    g->setTextColor(m.linkOk ? green : red);
     g->setCursor(4, 6);
-    g->print(m.loco[0] ? m.loco : "no loco");
+    g->print(name);
+    if (!m.linkOk) g->drawFastHLine(4, 13, (int)strlen(name) * 12, red);
     char b[12];
     if (m.battPct >= 0) snprintf(b, sizeof(b), "%d%%", m.battPct);
     else strcpy(b, "--");
     g->setTextColor(m.battPct >= 0 && m.battPct < 20 ? red : grey);
     g->setCursor(LCD_W - 4 - (int)strlen(b) * 12, 6);
     g->print(b);
-    g->fillCircle(LCD_W / 2 + 14, 14, 5, m.linkOk ? green : red);
 
     // Routes
     for (int i = 0; i < ROUTES; i++) {
@@ -120,26 +121,13 @@ void draw(Arduino_GFX *g, const Model &m) {
                m.pressed == HitFn0 + i);
     }
 
-    // Slider: track, FWD / REV labels, thumb, speed number
-    const int cx = LCD_W / 2;
-    const int top = sliderTop(), bot = sliderBottom(), mid = (top + bot) / 2;
-    g->setTextSize(1);
-    g->setTextColor(grey);
-    g->setCursor(cx - 9, SLIDER.y + 2);
-    g->print("FWD");
-    g->setCursor(cx - 9, SLIDER.y + SLIDER.h - 10);
-    g->print("REV");
-    g->fillRoundRect(cx - 4, top, 8, bot - top, 4, panel);
-    g->drawFastHLine(cx - 40, mid, 80, grey);   // zero mark
-    const int ty = thumbCentreY(m.speed);
-    const uint16_t tc = m.speed == 0 ? grey : (m.speed > 0 ? green : blue);
-    g->fillRoundRect((LCD_W - THUMB_W) / 2, ty - THUMB_H / 2, THUMB_W, THUMB_H, 10,
-                     m.pressed == HitThumb ? white : tc);
+    // Speed: up / down arrows around the signed speed
+    const uint16_t sc = m.speed == 0 ? grey : (m.speed > 0 ? green : blue);
+    arrow(g, UP, true, panel, m.pressed == HitUp);
+    arrow(g, DOWN, false, panel, m.pressed == HitDown);
     char n[12];
-    snprintf(n, sizeof(n), "%d", m.speed < 0 ? -m.speed : m.speed);
-    const Rect tr = {(int16_t)((LCD_W - THUMB_W) / 2), (int16_t)(ty - THUMB_H / 2),
-                     THUMB_W, THUMB_H};
-    centredText(g, tr, n, 4, bg);
+    snprintf(n, sizeof(n), "%d", m.speed);
+    centredText(g, SPEED, n, 5, sc);
 
     // IDLE
     button(g, IDLE, "IDLE", 3, red, white, m.pressed == HitIdle);

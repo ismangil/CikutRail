@@ -17,7 +17,7 @@
 #include "FunctionSlots.h"
 #include "Link.h"
 #include "Provision.h"
-#include "Slider.h"
+#include "Speed.h"
 #include "Ui.h"
 #include "config.h"
 
@@ -46,9 +46,17 @@ static bool readTouch(Touch &t) {
     const int16_t rawLong  = ((buf[2] & 0x0f) << 8) | buf[3];  // 0..640
     const int16_t rawShort = ((buf[4] & 0x0f) << 8) | buf[5];  // 0..172
     t.down = buf[1] > 0 && buf[1] < 5;
-    // Same mapping as Waveshare's LVGL demo for this orientation.
-    t.x = constrain(rawShort, 0, LCD_W - 1);
-    t.y = constrain(LCD_H - rawLong, 0, LCD_H - 1);
+    // With no finger the controller reports zeros, which would map to the
+    // bottom-left corner. Keep the last real position so release handlers
+    // hit-test where the finger actually lifted.
+    static int16_t lastX = 0, lastY = 0;
+    if (t.down) {
+        // Same mapping as Waveshare's LVGL demo for this orientation.
+        lastX = constrain(rawShort, 0, LCD_W - 1);
+        lastY = constrain(LCD_H - rawLong, 0, LCD_H - 1);
+    }
+    t.x = lastX;
+    t.y = lastY;
     return true;
 }
 
@@ -78,7 +86,8 @@ static bool      needDraw = true;
 static String    shownStatus;
 
 static const uint32_t LONG_PRESS_MS = 700;
-static const uint32_t SPEED_SEND_MS = 40;
+static const uint32_t REPEAT_DELAY_MS = 400;   // hold an arrow this long, then repeat
+static const uint32_t REPEAT_MS = 80;
 
 static String lastLoco() {
     prefs.begin(NVS_NAMESPACE, true);
@@ -106,7 +115,7 @@ static void sendSpeed() {
 }
 
 static void setSpeed(int v) {
-    model.speed = Slider::clampSpeed(v);
+    model.speed = Speed::clamp(v);
     if (model.speed != 0) model.forward = model.speed > 0;
 }
 
@@ -156,11 +165,20 @@ static void syncModel() {
         }
     }
 
-    // Do not fight the finger while the thumb is being dragged.
-    if (model.pressed != Ui::HitThumb) {
-        const int mag = app.mirroredSpeed;
-        const bool fwd = app.mirroredDirection == Forward;
-        model.speed = Slider::clampSpeed(fwd ? mag : -mag);
+    // JMRI does not echo our own speed changes, so the mirror can sit stale at
+    // 0 while the loco runs. Adopt it only when it changes (another throttle
+    // moved the loco, or a new loco was acquired), and never while an arrow
+    // is held.
+    static int       seenMag = 0;
+    static Direction seenDir = Forward;
+    const int  mag = app.mirroredSpeed;
+    const Direction dir = app.mirroredDirection;
+    if ((mag != seenMag || dir != seenDir) && model.pressed != Ui::HitUp &&
+        model.pressed != Ui::HitDown) {
+        seenMag = mag;
+        seenDir = dir;
+        const bool fwd = dir == Forward;
+        model.speed = Speed::clamp(fwd ? mag : -mag);
         model.forward = fwd;
     }
     model.linkOk = jmri.online();
@@ -199,22 +217,23 @@ static void handlePickerTouch(const Touch &t) {
 }
 
 // Touch state machine for the main screen. A press picks what it landed on;
-// only the thumb follows the finger, so a slip elsewhere cannot change speed.
+// the up / down arrows step the speed by one and repeat while held.
 static void handleTouch(const Touch &t) {
     static bool     wasDown = false;
-    static int      grabOffset = 0;
-    static uint32_t pressAt = 0, lastSent = 0;
+    static uint32_t pressAt = 0, lastRepeat = 0;
     static bool     pickerTriggered = false;
     bool changed = false;
 
     if (t.down && !wasDown) {
-        const int hit = Ui::onThumb(model, t.x, t.y) ? Ui::HitThumb : Ui::hitTest(t.x, t.y);
+        const int hit = Ui::hitTest(t.x, t.y);
         model.pressed = hit;
         pressAt = millis();
         pickerTriggered = false;
         changed = true;
-        if (hit == Ui::HitThumb) {
-            grabOffset = t.y - Ui::thumbCentreY(model.speed);
+        if (hit == Ui::HitUp || hit == Ui::HitDown) {
+            setSpeed(Speed::nudge(model.speed, hit == Ui::HitUp ? 1 : -1));
+            sendSpeed();
+            lastRepeat = pressAt + REPEAT_DELAY_MS - REPEAT_MS;
         } else if (hit == Ui::HitIdle) {
             setSpeed(0);
             sendSpeed();
@@ -226,17 +245,12 @@ static void handleTouch(const Touch &t) {
                 wit.setFunction(THROTTLE_SLOT, fnNum[i], true);
         }
     } else if (t.down && wasDown) {
-        if (model.pressed == Ui::HitThumb) {
-            const int v = Slider::speedFromY(t.y - grabOffset, Ui::sliderTop(),
-                                             Ui::sliderBottom());
-            if (v != model.speed) {
-                setSpeed(v);
-                changed = true;
-                if (millis() - lastSent >= SPEED_SEND_MS) {
-                    lastSent = millis();
-                    sendSpeed();
-                }
-            }
+        if ((model.pressed == Ui::HitUp || model.pressed == Ui::HitDown) &&
+            millis() - pressAt >= REPEAT_DELAY_MS && millis() - lastRepeat >= REPEAT_MS) {
+            lastRepeat = millis();
+            setSpeed(Speed::nudge(model.speed, model.pressed == Ui::HitUp ? 1 : -1));
+            sendSpeed();
+            changed = true;
         } else if (model.pressed == Ui::HitStatus && !pickerTriggered &&
                    millis() - pressAt > LONG_PRESS_MS) {
             pickerTriggered = true;
@@ -248,9 +262,7 @@ static void handleTouch(const Touch &t) {
     } else if (!t.down && wasDown) {
         const int hit = model.pressed;
         const bool same = Ui::hitTest(t.x, t.y) == hit;
-        if (hit == Ui::HitThumb) {
-            sendSpeed();  // final value
-        } else if (hit >= Ui::HitRoute0 && hit < Ui::HitRoute0 + Ui::ROUTES && same) {
+        if (hit >= Ui::HitRoute0 && hit < Ui::HitRoute0 + Ui::ROUTES && same) {
             const int i = hit - Ui::HitRoute0;
             if (i < (int)app.routes.size() && jmri.online())
                 wit.setRoute(app.routes[i].sysName);
