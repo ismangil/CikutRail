@@ -272,36 +272,6 @@ void drive(const DriveStatus &s) {
     }
 }
 
-void functions(const bool *fnState, uint8_t selected) {
-    clear();
-    drawHeader("Functions", "F1-F12");
-    constexpr int rows = 4;   // portrait: stack F1-F12 as 4 rows of 3
-    constexpr int cols = 3;
-    const int top = BODY_TOP;
-    const int cellW = TFT_W / cols;
-    const int cellH = (TFT_H - top) / rows;
-    M5.Display.setTextDatum(middle_center);
-    M5.Display.setTextSize(2);
-    for (int i = 0; i < rows * cols; i++) {
-        const int r = i / cols;
-        const int c = i % cols;
-        const int x = c * cellW;
-        const int y = top + r * cellH;
-        const uint8_t fn = (uint8_t)(i + 1);  // F1..F12
-        const bool on = fnState ? fnState[fn] : false;
-        const bool sel = (fn == selected);
-        const uint16_t bg = on ? COL_ACCENT : COL_BG;
-        const uint16_t fg = on ? COL_BG : COL_FG;
-        M5.Display.fillRect(x + 2, y + 2, cellW - 4, cellH - 4, bg);
-        const uint16_t border = sel ? COL_FG : COL_DIM;
-        M5.Display.drawRect(x + 2, y + 2, cellW - 4, cellH - 4, border);
-        M5.Display.setTextColor(fg, bg);
-        char buf[4];
-        snprintf(buf, sizeof(buf), "F%u", fn);
-        M5.Display.drawString(buf, x + cellW / 2, y + cellH / 2);
-    }
-}
-
 namespace {
 
 const char *turnoutGlyph(TurnoutState st) {
@@ -336,6 +306,54 @@ void drawLayoutRow(int y, int rowH, bool selected, const String &left,
 }
 
 }  // namespace
+
+void functions(const bool *fnState, const String *labels, uint8_t selected) {
+    clear();
+    drawHeader("Functions", "");
+    constexpr int rowH = 24;
+    const int top = BODY_TOP;
+    const int rows = (TFT_H - top) / rowH;
+
+    // Defined functions, F1 upwards (F0 is on BtnA).
+    uint8_t defined[MAX_FUNCTIONS];
+    int n = 0, selIdx = 0;
+    for (uint8_t fn = 1; fn < MAX_FUNCTIONS; fn++) {
+        if (!labels[fn].length()) continue;
+        if (fn == selected) selIdx = n;
+        defined[n++] = fn;
+    }
+    if (n == 0) {
+        M5.Display.setTextDatum(middle_center);
+        M5.Display.setTextSize(2);
+        M5.Display.setTextColor(COL_DIM, COL_BG);
+        M5.Display.drawString("No functions", TFT_W / 2, TFT_H / 2 - 10);
+        M5.Display.setTextSize(1);
+        M5.Display.drawString("in roster entry", TFT_W / 2, TFT_H / 2 + 10);
+        return;
+    }
+    int first = selIdx - rows / 2;
+    if (first > n - rows) first = n - rows;
+    if (first < 0) first = 0;
+    for (int r = 0; r < rows && first + r < n; r++) {
+        const uint8_t fn = defined[first + r];
+        const bool on = fnState ? fnState[fn] : false;
+        const bool sel = (fn == selected);
+        const int y = top + r * rowH;
+        const uint16_t bg = sel ? COL_ACCENT : COL_BG;
+        M5.Display.fillRect(0, y, TFT_W, rowH - 2, bg);
+        M5.Display.setTextColor(sel ? COL_BG : COL_FG, bg);
+        M5.Display.setTextSize(2);
+        M5.Display.setTextDatum(top_left);
+        String l = "F" + String(fn) + " " + labels[fn];
+        truncateToWidth(l, TFT_W - 24);
+        M5.Display.drawString(l, 4, y + 4);
+        // State dot on the right
+        if (on) M5.Display.fillCircle(TFT_W - 10, y + rowH / 2 - 1, 5,
+                                      sel ? COL_BG : COL_ACCENT);
+        else    M5.Display.drawCircle(TFT_W - 10, y + rowH / 2 - 1, 5,
+                                      sel ? COL_BG : COL_DIM);
+    }
+}
 
 void layout(const std::vector<TurnoutEntry> &turnouts,
             const std::vector<RouteEntry> &routes,

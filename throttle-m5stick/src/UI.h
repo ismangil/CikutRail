@@ -46,9 +46,10 @@ struct DriveStatus {
 };
 void drive(const DriveStatus &s);
 
-// Function grid: 4x3 buttons F1..F12. selected is the focused function
-// number (1..12).
-void functions(const bool *fnState, uint8_t selected);
+// Function list: one row per function the roster entry defines (non-empty
+// label), F1 upwards; F0 stays on BtnA. selected is the focused function
+// number; 0 when none is defined (shows an empty-state message).
+void functions(const bool *fnState, const String *labels, uint8_t selected);
 
 // Layout view: turnouts and routes on one screen with a tab toggle.
 enum class LayoutTab : uint8_t { Turnouts, Routes };

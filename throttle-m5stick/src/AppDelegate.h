@@ -62,6 +62,8 @@ class AppDelegate : public WiThrottleProtocolDelegate {
     int       mirroredSpeed = 0;
     Direction mirroredDirection = Forward;
     bool      mirroredFunctions[MAX_FUNCTIONS] = {false};
+    // Roster-entry labels for the acquired loco; empty = not defined.
+    String    functionLabels[MAX_FUNCTIONS];
 
     // Set true any time mirrored* changes so the UI knows to repaint.
     volatile bool dirty = false;
@@ -120,6 +122,16 @@ class AppDelegate : public WiThrottleProtocolDelegate {
         mirroredSpeed = 0;
         mirroredDirection = Forward;
         for (auto &f : mirroredFunctions) f = false;
+        for (auto &l : functionLabels) l = "";
+        dirty = true;
+    }
+    void receivedRosterFunctionListMultiThrottle(
+            char multiThrottle, String functions[MAX_FUNCTIONS]) override {
+        if (multiThrottle != THROTTLE_SLOT) return;
+        for (int i = 0; i < MAX_FUNCTIONS; i++) {
+            functionLabels[i] = functions[i];
+            functionLabels[i].trim();
+        }
         dirty = true;
     }
     void addressRemovedMultiThrottle(char multiThrottle, String /*addr*/,
