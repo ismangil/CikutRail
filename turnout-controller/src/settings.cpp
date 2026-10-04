@@ -113,7 +113,14 @@ Source loadNet(tc::NetConfig* config) {
 bool saveNet(const tc::NetConfig& config) {
   Preferences prefs;
   if (!prefs.begin(kNetNamespace, false)) return false;
-  // ssid last: loadNet treats its presence as "settings saved".
+  // loadNet treats the presence of "ssid" as "settings saved". Remove it
+  // first and write it last, so a failed or interrupted save leaves no
+  // half-updated record that looks committed (the node then falls back to
+  // the compiled-in settings or the setup page).
+  if (prefs.isKey("ssid") && !prefs.remove("ssid")) {
+    prefs.end();
+    return false;
+  }
   const bool ok = prefs.putString("wpass", config.wifiPassword) == strlen(config.wifiPassword) &&
                   prefs.putString("mhost", config.mqttHost) > 0 && prefs.putUShort("mport", config.mqttPort) > 0 &&
                   prefs.putString("muser", config.mqttUser) == strlen(config.mqttUser) &&
