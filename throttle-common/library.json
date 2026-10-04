@@ -1,0 +1,8 @@
+{
+  "name": "throttle-common",
+  "version": "0.1.0",
+  "description": "Code shared by the CikutRail WiThrottle handhelds: JMRI delegate with roster/turnout/route buffering, Wi-Fi setup portal, reconnect ladder constants",
+  "license": "AGPL-3.0-only",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

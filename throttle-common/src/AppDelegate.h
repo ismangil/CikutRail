@@ -8,7 +8,7 @@
 #include <WiThrottleProtocol.h>
 #include <vector>
 
-#include "config.h"
+#include "CommonConfig.h"
 
 struct RosterEntry {
     String name;
