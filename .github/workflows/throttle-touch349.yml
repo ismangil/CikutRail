@@ -1,0 +1,51 @@
+name: throttle-touch349
+
+on:
+  push:
+    paths:
+      - "throttle-touch349/**"
+      - "throttle-common/**"
+      - ".github/workflows/throttle-touch349.yml"
+  pull_request:
+    paths:
+      - "throttle-touch349/**"
+      - "throttle-common/**"
+      - ".github/workflows/throttle-touch349.yml"
+
+defaults:
+  run:
+    working-directory: throttle-touch349
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('throttle-touch349/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Unit tests (PC)
+        run: pio test -e native
+
+      - name: Build firmware
+        run: pio run -e touch349
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: throttle-touch349
+          path: |
+            throttle-touch349/.pio/build/touch349/firmware.bin
+            throttle-touch349/.pio/build/touch349/bootloader.bin
+            throttle-touch349/.pio/build/touch349/partitions.bin
