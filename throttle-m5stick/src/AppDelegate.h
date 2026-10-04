@@ -140,6 +140,8 @@ class AppDelegate : public WiThrottleProtocolDelegate {
         acquiredAddress = "";
         locoAcquired = false;
         mirroredSpeed = 0;
+        for (auto &f : mirroredFunctions) f = false;
+        for (auto &l : functionLabels) l = "";
         dirty = true;
     }
 
