@@ -6,10 +6,26 @@ A second handheld Wi-Fi throttle for JMRI's WiThrottle server, on the
 [M5Stick throttle](../throttle-m5stick/) through
 [`../throttle-common/`](../throttle-common/). Plan and task list: issue #6.
 
-**Status: bring-up only.** `src/main.cpp` draws a crosshair under the finger
-and logs the battery voltage. It is flashed and works on the board (display, touch
-and battery reading checked 2026-10-04; the crosshair follows the finger
-smoothly in all corners). There is no throttle UI yet.
+**Status: UI mock.** The main screen is drawn and works by touch on the board,
+with a fake GP40 and fake routes standing in for JMRI; nothing is sent to the
+layout yet. Display, touch and battery reading were checked on 2026-10-04.
+
+## Screen
+
+172 x 640 portrait, top to bottom: status strip (loco, link, battery), three
+route buttons (the sidings), three function buttons, a centre-zero speed
+slider with a numeric readout, and an IDLE button.
+
+- The slider moves only when a touch starts on its thumb, so a slipped finger
+  cannot change speed. It snaps to 0 near the centre. Forward is green,
+  reverse is blue.
+- IDLE sets speed to 0 at once (no e-stop).
+- The three function buttons come from the loco's own JMRI function list
+  (`throttle-common/src/FunctionSlots.h`): slot 1 prefers a "light" function,
+  slot 2 "beacon", slot 3 "uncouple", matched by label. Empty slots take the
+  lowest-numbered unused functions. Functions labelled "uncouple" or "delayed"
+  are momentary; the rest toggle.
+- The routes are the first three in JMRI's route list.
 
 ## Build
 
@@ -52,6 +68,9 @@ Still open: what BOOT does in the throttle.
 throttle-touch349/
 ├── platformio.ini
 └── src/
-    ├── main.cpp   bring-up sketch: display, touch, battery
+    ├── main.cpp   touch state machine, mock loco
+    ├── Ui.h / .cpp   drawing and hit-testing
+    ├── Slider.h   slider maths (native-tested)
     └── config.h   pins and I2C addresses
+└── test/test_logic/   native tests: `pio test -e native`
 ```

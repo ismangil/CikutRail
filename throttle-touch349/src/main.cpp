@@ -1,12 +1,14 @@
-// Bring-up sketch for the touch throttle: proves the display, touch and
-// battery reading work from PlatformIO before the throttle UI is built on
-// them (#6, "Check first"). Draws a crosshair under the finger and prints
-// raw touch and battery readings to the serial console.
+// Touch throttle, UI mock (#6). Draws the main screen and handles touch, with
+// a fake loco and routes standing in for JMRI: nothing is sent anywhere yet.
+// Speed and button events are logged to the serial console.
 
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 
+#include "FunctionSlots.h"
+#include "Slider.h"
+#include "Ui.h"
 #include "config.h"
 
 static Arduino_DataBus *bus = new Arduino_ESP32QSPI(
@@ -44,35 +46,126 @@ static float batteryVolts() {
     return analogReadMilliVolts(BATT_ADC_PIN) * 0.001f * BATT_DIVIDER;
 }
 
+// Rough LiPo state of charge from the resting voltage.
+static int batteryPercent() {
+    const float v = batteryVolts();
+    return constrain((int)((v - 3.3f) / (4.15f - 3.3f) * 100.0f), 0, 100);
+}
+
+static Ui::Model model;
+
+// Stand-in roster entry: the GP40 has lights and uncoupling.
+static void loadMockLoco() {
+    strcpy(model.loco, "GP40");
+    const char *labels[13] = {"Light", "", "", "", "", "", "", "", "", "",
+                              "Uncouple", "", ""};
+    int slot[FunctionSlots::SLOTS];
+    FunctionSlots::pick(labels, 13, slot);
+    for (int i = 0; i < Ui::FUNCS; i++) {
+        Ui::Fn &f = model.fn[i];
+        f.defined = slot[i] != FunctionSlots::NONE;
+        if (!f.defined) continue;
+        strlcpy(f.label, labels[slot[i]], sizeof(f.label));
+        f.momentary = FunctionSlots::looksMomentary(f.label);
+    }
+    strcpy(model.route[0], "Siding 1");
+    strcpy(model.route[1], "Siding 2");
+    strcpy(model.route[2], "Siding 3");
+    model.linkOk = true;
+}
+
+static void setSpeed(int v) {
+    model.speed = Slider::clampSpeed(v);
+    if (model.speed != 0) model.forward = model.speed > 0;
+}
+
+// Touch state machine. A press picks what it landed on; only the thumb
+// follows the finger, so a slip elsewhere cannot change speed.
+static void handleTouch(const Touch &t) {
+    static bool wasDown = false;
+    static int  grabOffset = 0;
+    static int  lastLogged = 0;
+    bool changed = false;
+
+    if (t.down && !wasDown) {
+        int hit = Ui::onThumb(model, t.x, t.y) ? Ui::HitThumb : Ui::hitTest(t.x, t.y);
+        model.pressed = hit;
+        changed = true;
+        if (hit == Ui::HitThumb) {
+            grabOffset = t.y - Ui::thumbCentreY(model.speed);
+        } else if (hit == Ui::HitIdle) {
+            setSpeed(0);
+        } else if (hit >= Ui::HitFn0 && hit < Ui::HitFn0 + Ui::FUNCS) {
+            Ui::Fn &f = model.fn[hit - Ui::HitFn0];
+            if (f.defined && f.momentary) {
+                f.on = true;
+                Serial.printf("fn %s down\n", f.label);
+            }
+        }
+    } else if (t.down && wasDown && model.pressed == Ui::HitThumb) {
+        const int v = Slider::speedFromY(t.y - grabOffset, Ui::sliderTop(),
+                                         Ui::sliderBottom());
+        if (v != model.speed) {
+            setSpeed(v);
+            changed = true;
+        }
+    } else if (!t.down && wasDown) {
+        const int hit = model.pressed;
+        // Release over the same button completes a tap.
+        const bool same = Ui::hitTest(t.x, t.y) == hit;
+        if (hit >= Ui::HitRoute0 && hit < Ui::HitRoute0 + Ui::ROUTES && same) {
+            model.activeRoute = hit - Ui::HitRoute0;
+            Serial.printf("route %s\n", model.route[model.activeRoute]);
+        } else if (hit >= Ui::HitFn0 && hit < Ui::HitFn0 + Ui::FUNCS) {
+            Ui::Fn &f = model.fn[hit - Ui::HitFn0];
+            if (f.defined && f.momentary) {
+                f.on = false;
+                Serial.printf("fn %s up\n", f.label);
+            } else if (f.defined && same) {
+                f.on = !f.on;
+                Serial.printf("fn %s %s\n", f.label, f.on ? "on" : "off");
+            }
+        }
+        model.pressed = Ui::HitNone;
+        changed = true;
+    }
+    wasDown = t.down;
+
+    if (model.speed != lastLogged) {
+        lastLogged = model.speed;
+        Serial.printf("speed %d\n", model.speed);
+    }
+    if (changed) {
+        Ui::draw(gfx, model);
+        gfx->flush();
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     pinMode(LCD_BL, OUTPUT);
     digitalWrite(LCD_BL, HIGH);
     if (!gfx->begin()) Serial.println("display init failed");
-    gfx->fillScreen(RGB565_BLACK);
-    gfx->setTextColor(RGB565_WHITE);
-    gfx->setTextSize(2);
-    gfx->setCursor(8, 8);
-    gfx->print("touch349");
-    gfx->flush();
     Wire.begin(TOUCH_SDA, TOUCH_SCL, 400000);
     analogSetPinAttenuation(BATT_ADC_PIN, ADC_11db);
+    loadMockLoco();
+    model.battPct = batteryPercent();
+    Ui::draw(gfx, model);
+    gfx->flush();
 }
 
 void loop() {
-    static uint32_t lastLog = 0;
+    static uint32_t lastBatt = 0;
     Touch t;
-    if (readTouch(t) && t.down) {
-        gfx->fillScreen(RGB565_BLACK);
-        gfx->drawFastHLine(0, t.y, LCD_W, RGB565_GREEN);
-        gfx->drawFastVLine(t.x, 0, LCD_H, RGB565_GREEN);
-        gfx->setCursor(8, 8);
-        gfx->printf("%d,%d", t.x, t.y);
-        gfx->flush();
-    }
-    if (millis() - lastLog > 2000) {
-        lastLog = millis();
+    if (readTouch(t)) handleTouch(t);
+    if (millis() - lastBatt > 10000) {
+        lastBatt = millis();
+        model.battPct = batteryPercent();
         Serial.printf("battery %.2f V\n", batteryVolts());
+        if (model.pressed == Ui::HitNone) {
+            Ui::draw(gfx, model);
+            gfx->flush();
+        }
     }
     delay(10);
 }
