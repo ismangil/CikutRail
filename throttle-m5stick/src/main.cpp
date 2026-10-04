@@ -227,7 +227,17 @@ void enterConnectThrottle() {
 
 void enterRoster() {
     state = AppState::Roster;
+    // Start on the loco being driven, if any, so the list shows where we are.
     rosterIndex = 0;
+    if (delegateImpl.locoAcquired) {
+        for (size_t i = 0; i < delegateImpl.roster.size(); i++) {
+            if (delegateImpl.roster[i].witAddress() ==
+                delegateImpl.acquiredAddress) {
+                rosterIndex = (int)i;
+                break;
+            }
+        }
+    }
     rosterScroll = 0;
     rosterDeltaAccum = 0;
     encoder.setLed(0x000000);  // not actively driving
@@ -392,6 +402,19 @@ void tickRoster() {
         rosterIndex < (int)delegateImpl.roster.size()) {
         noteInput();
         const String addr = delegateImpl.roster[rosterIndex].witAddress();
+        if (delegateImpl.locoAcquired &&
+            delegateImpl.acquiredAddress == addr) {
+            enterDrive();  // already driving this one
+            return;
+        }
+        if (delegateImpl.locoAcquired) {
+            // Hand the current loco back to JMRI without stopping it: it
+            // keeps running at its last speed.
+            wit.releaseLocomotive(THROTTLE_SLOT);
+            delegateImpl.locoAcquired = false;
+            delegateImpl.acquiredAddress = "";
+            throttlePos = 0;
+        }
         if (wit.addLocomotive(THROTTLE_SLOT, addr)) {
             // Persist last loco
             prefs.begin(NVS_NAMESPACE, false);
@@ -405,7 +428,14 @@ void tickRoster() {
     }
 
     M5.update();
-    // (No BtnB action in the roster picker for now.)
+    // BtnA / BtnB: back to Drive without changing loco (once one is
+    // acquired). BtnB continues the screen cycle: Roster -> Drive.
+    if (delegateImpl.locoAcquired &&
+        (M5.BtnA.wasReleased() || M5.BtnB.wasReleased())) {
+        noteInput();
+        enterDrive();
+        return;
+    }
 
     if (delegateImpl.dirty || needRepaint) {
         if (delegateImpl.expectedRosterSize < 0 ||
@@ -480,12 +510,10 @@ void tickDrive() {
         delegateImpl.mirroredFunctions[0] = now;
         needRepaint = true;
     }
-    // BtnB: long => release loco + back to roster; short => open functions
+    // BtnB: long => jump to the loco picker (nothing is released until a
+    // different loco is picked); short => open functions
     if (M5.BtnB.wasReleaseFor(LONG_PRESS_MS)) {
         noteInput();
-        wit.releaseLocomotive(THROTTLE_SLOT);
-        delegateImpl.locoAcquired = false;
-        delegateImpl.acquiredAddress = "";
         enterRoster();
         return;
     } else if (M5.BtnB.wasReleased()) {
@@ -616,9 +644,14 @@ void tickLayout() {
 
 void tickStatus() {
     M5.update();
-    if (M5.BtnB.wasReleased() || M5.BtnA.wasReleased()) {
+    if (M5.BtnA.wasReleased()) {
         noteInput();
         enterDrive();
+        return;
+    }
+    if (M5.BtnB.wasReleased()) {
+        noteInput();
+        enterRoster();
         return;
     }
     if (needRepaint) {

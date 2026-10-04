@@ -81,7 +81,8 @@ encoder LED turns green or red to match. Crossing zero automatically issues
 a stop-then-flip-direction. Push the encoder to e-stop.
 
 Press **BtnB** to cycle through additional screens: Functions (F1–F12),
-**Layout** (turnouts and routes from JMRI), and Status. **BtnA** returns to
+**Layout** (turnouts and routes from JMRI), Status, and **Locos** (the roster,
+to switch loco). **BtnA** returns to
 Drive from any of them. On the Layout screen, the encoder selects an item
 within the active tab, encoder short-press activates it (toggles a turnout
 or fires a route), and encoder long-press flips between the Turnouts and
@@ -100,8 +101,8 @@ Routes tabs.
 | BtnA (front, short)            | Toggle F0 (lights).                                 |
 | BtnA (long)                    | Flip polarity (swap CW/CCW meaning, for locos       |
 |                                | facing the other way). Persisted to NVS.            |
-| BtnB (side, short)             | Cycle screens: Drive → Functions → Layout → Status. |
-| BtnB (long)                    | Release the loco and return to the roster picker.   |
+| BtnB (side, short)             | Cycle: Drive → Functions → Layout → Status → Locos. |
+| BtnB (long, on Drive)          | Jump straight to the Locos screen.                  |
 | BtnB (held at boot)            | Clear NVS and re-enter setup.                       |
 
 Layout screen controls (turnouts and routes):
@@ -139,6 +140,12 @@ fold the server's view back into the local slider.
   JMRI's WiThrottle preferences for a heartbeat interval > 0.
 - **LED is too bright** — adjust the `0x002000` / `0x200000` levels in
   `updateThrottleLed()` in the `.ino`.
+
+Switching loco: on the Locos screen the loco you are driving is highlighted.
+Push the encoder on another loco to release the current one and acquire the
+new one. The released loco is not stopped; it keeps running at its last
+speed under JMRI, so set it to zero first if you want it stopped. BtnA or
+BtnB leaves the Locos screen without changing loco.
 
 ## Constraints worth knowing
 
