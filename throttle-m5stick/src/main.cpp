@@ -561,7 +561,8 @@ void tickFunctions() {
         needRepaint = true;
     }
     const auto ev = encoder.consumeButtonEvent();
-    if (ev == EncoderHat::ButtonEvent::ShortPress && fnSelected != UI::FN_NONE) {
+    if (ev == EncoderHat::ButtonEvent::ShortPress && fnSelected != UI::FN_NONE &&
+        delegateImpl.functionLabels[fnSelected].length()) {
         noteInput();
         const bool now = !delegateImpl.mirroredFunctions[fnSelected];
         wit.setFunction(THROTTLE_SLOT, fnSelected, now);

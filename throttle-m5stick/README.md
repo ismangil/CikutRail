@@ -80,7 +80,7 @@ Rotate clockwise to add forward speed, counter-clockwise for reverse — the
 encoder LED turns green or red to match. Crossing zero automatically issues
 a stop-then-flip-direction. Push the encoder to e-stop.
 
-Press **BtnB** to cycle through additional screens: Functions (F1–F12),
+Press **BtnB** to cycle through additional screens: Functions (the functions the roster entry defines, with JMRI labels),
 **Layout** (turnouts and routes from JMRI), Status, and **Locos** (the roster,
 to switch loco). **BtnA** returns to
 Drive from any of them. On the Layout screen, the encoder selects an item
@@ -186,7 +186,7 @@ fetched by PlatformIO, not copied in.
 
 - Layout test: drive the GP40, throw `MT101`-`MT111` from the Layout
   screen, check F10/F11 against the uncoupling script (#4) and how the
-  function grid handles momentary functions.
+  function list handles momentary functions.
 - Unit tests for the speed/direction maths, encoder acceleration and
   reconnect backoff, moved into `lib/` like the turnout controller.
 - Shared code with the second throttle (#6) moves to `throttle-common/`

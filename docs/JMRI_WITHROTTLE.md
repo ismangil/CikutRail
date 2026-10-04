@@ -21,6 +21,7 @@ turnout nodes need no changes.
 
 - Roster entries (locos), turnouts (`MT101`-`MT111` from the turnout node)
   and routes from JMRI's tables.
-- Function buttons F0-F12; whether a function is momentary or latching is
-  decided by the roster entry and the WiThrottle server. To be checked for
-  the uncoupling functions (#4).
+- Function buttons F0-F28 (the throttle lists those the roster entry
+  defines). The throttle does not yet follow the roster's momentary/latching
+  setting: a press toggles the function. Momentary functions such as the
+  uncoupling ones (#4) need a protocol capture first (#7).
