@@ -35,6 +35,8 @@ struct Touch {
     int16_t x, y;  // portrait pixels, origin top-left
 };
 
+static const uint32_t RELEASE_GRACE_MS = 100;
+
 static bool readTouch(Touch &t) {
     static const uint8_t cmd[11] = {0xb5, 0xab, 0xa5, 0x5a, 0, 0, 0, 0x0e, 0, 0, 0};
     uint8_t buf[32] = {0};
@@ -45,12 +47,24 @@ static bool readTouch(Touch &t) {
     for (auto &b : buf) b = Wire.read();
     const int16_t rawLong  = ((buf[2] & 0x0f) << 8) | buf[3];  // 0..640
     const int16_t rawShort = ((buf[4] & 0x0f) << 8) | buf[5];  // 0..172
-    t.down = buf[1] > 0 && buf[1] < 5;
+    const bool raw = buf[1] > 0 && buf[1] < 5;
+    // A held finger makes the controller report "no touch" for a frame about
+    // every 70 ms. Treat it as lifted only after RELEASE_GRACE_MS of silence,
+    // or a long press would restart its timer on every dropout.
+    static bool     held = false;
+    static uint32_t lastSeen = 0;
+    if (raw) {
+        held = true;
+        lastSeen = millis();
+    } else if (held && millis() - lastSeen > RELEASE_GRACE_MS) {
+        held = false;
+    }
+    t.down = held;
     // With no finger the controller reports zeros, which would map to the
     // bottom-left corner. Keep the last real position so release handlers
     // hit-test where the finger actually lifted.
     static int16_t lastX = 0, lastY = 0;
-    if (t.down) {
+    if (raw) {
         // Same mapping as Waveshare's LVGL demo for this orientation.
         lastX = constrain(rawShort, 0, LCD_W - 1);
         lastY = constrain(LCD_H - rawLong, 0, LCD_H - 1);

@@ -146,30 +146,35 @@ void message(Arduino_GFX *g, const char *title, const String &body) {
 }
 
 namespace {
-constexpr int PICK_Y0 = 8, PICK_H = 60, PICK_GAP = 4;
-Rect pickRect(int i) {
-    return {4, (int16_t)(PICK_Y0 + i * (PICK_H + PICK_GAP)), LCD_W - 8, PICK_H};
+constexpr int PICK_H = 60, PICK_GAP = 4;
+// The list (rows plus Cancel) is centred vertically so the first row is well
+// away from the top edge, where touches are hard to land.
+int visibleRows(int n) { return n < PICK_ROWS ? n : PICK_ROWS; }
+Rect pickRect(int i, int n) {
+    const int slots = visibleRows(n) + 1;   // + Cancel
+    const int y0 = (LCD_H - (slots * (PICK_H + PICK_GAP) - PICK_GAP)) / 2;
+    return {4, (int16_t)(y0 + i * (PICK_H + PICK_GAP)), LCD_W - 8, PICK_H};
 }
 }  // namespace
 
 void picker(Arduino_GFX *g, const String *names, int n, int current) {
     g->fillScreen(g->color565(8, 10, 14));
-    const int rows = n < PICK_ROWS ? n : PICK_ROWS;
+    const int rows = visibleRows(n);
     for (int i = 0; i < rows; i++) {
         const bool cur = (i == current);
         char b[16];
         strlcpy(b, names[i].c_str(), sizeof(b));
-        button(g, pickRect(i), b, 2, cur ? g->color565(40, 200, 90) : g->color565(34, 38, 46),
+        button(g, pickRect(i, n), b, 2, cur ? g->color565(40, 200, 90) : g->color565(34, 38, 46),
                cur ? g->color565(8, 10, 14) : RGB565_WHITE, false);
     }
-    button(g, pickRect(PICK_ROWS), "Cancel", 2, g->color565(60, 60, 60), RGB565_WHITE, false);
+    button(g, pickRect(rows, n), "Cancel", 2, g->color565(60, 60, 60), RGB565_WHITE, false);
 }
 
 int pickerHit(int x, int y, int n) {
-    const int rows = n < PICK_ROWS ? n : PICK_ROWS;
+    const int rows = visibleRows(n);
     for (int i = 0; i < rows; i++)
-        if (inside(pickRect(i), x, y)) return i;
-    if (inside(pickRect(PICK_ROWS), x, y)) return PICK_CANCEL;
+        if (inside(pickRect(i, n), x, y)) return i;
+    if (inside(pickRect(rows, n), x, y)) return PICK_CANCEL;
     return -1;
 }
 
