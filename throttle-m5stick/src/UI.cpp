@@ -314,10 +314,10 @@ void functions(const bool *fnState, const String *labels, uint8_t selected) {
     const int top = BODY_TOP;
     const int rows = (TFT_H - top) / rowH;
 
-    // Defined functions, F1 upwards (F0 is on BtnA).
+    // Defined functions, F0 upwards.
     uint8_t defined[MAX_FUNCTIONS];
     int n = 0, selIdx = 0;
-    for (uint8_t fn = 1; fn < MAX_FUNCTIONS; fn++) {
+    for (uint8_t fn = 0; fn < MAX_FUNCTIONS; fn++) {
         if (!labels[fn].length()) continue;
         if (fn == selected) selIdx = n;
         defined[n++] = fn;

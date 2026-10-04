@@ -47,8 +47,9 @@ struct DriveStatus {
 void drive(const DriveStatus &s);
 
 // Function list: one row per function the roster entry defines (non-empty
-// label), F1 upwards; F0 stays on BtnA. selected is the focused function
-// number; 0 when none is defined (shows an empty-state message).
+// label), F0 upwards (F0 is also on BtnA). selected is the focused function
+// number; FN_NONE when none is defined (shows an empty-state message).
+constexpr uint8_t FN_NONE = 0xFF;
 void functions(const bool *fnState, const String *labels, uint8_t selected);
 
 // Layout view: turnouts and routes on one screen with a tab toggle.

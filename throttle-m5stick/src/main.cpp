@@ -14,7 +14,7 @@
 //   * Centre-zero bipolar slider: rotate clockwise from zero to add forward
 //     speed; counter-clockwise to add reverse speed. Crossing zero issues
 //     a stop-then-flip-direction sequence automatically.
-//   * F0..F12 function support (F0 on BtnA, F1+ as a list of the functions the roster entry defines).
+//   * F0..F12 function support (F0 on BtnA, F0+ as a list of the functions the roster entry defines).
 //   * Reconnect ladder when the server disappears.
 //
 // See README.md alongside this sketch for build and wiring instructions.
@@ -75,7 +75,7 @@ int      rosterDeltaAccum = 0;     // accumulator: 2 detents = 1 row move
 constexpr int ROSTER_DETENTS_PER_ROW = 2;
 
 // Functions view state
-uint8_t  fnSelected = 0; // focused function (F1+); 0 = none defined
+uint8_t  fnSelected = UI::FN_NONE; // focused function (F0+); UI::FN_NONE = none defined
 
 // Layout (turnouts/routes) view state
 UI::LayoutTab layoutTab = UI::LayoutTab::Turnouts;
@@ -250,26 +250,26 @@ void enterDrive() {
     needRepaint = true;
 }
 
-// Step to the next/previous function the roster entry defines (F1+),
-// wrapping; returns 0 when none is defined.
+// Step to the next/previous function the roster entry defines (F0+),
+// wrapping; returns UI::FN_NONE when none is defined. From UI::FN_NONE, +1 gives the
+// first defined function.
 uint8_t stepFunction(uint8_t from, int dir) {
     const String *lb = delegateImpl.functionLabels;
-    uint8_t fn = from;
+    int n = (from == UI::FN_NONE) ? (dir > 0 ? -1 : MAX_FUNCTIONS) : (int)from;
     for (int i = 0; i < MAX_FUNCTIONS; i++) {
-        int n = (int)fn + dir;
-        if (n < 1) n = MAX_FUNCTIONS - 1;
-        if (n >= MAX_FUNCTIONS) n = 1;
-        fn = (uint8_t)n;
-        if (lb[fn].length()) return fn;
+        n += dir;
+        if (n < 0) n = MAX_FUNCTIONS - 1;
+        if (n >= MAX_FUNCTIONS) n = 0;
+        if (lb[n].length()) return (uint8_t)n;
     }
-    return 0;
+    return UI::FN_NONE;
 }
 
 void enterFunctions() {
     state = AppState::Functions;
     // Keep the focus if it is still defined, else take the first defined one.
-    if (fnSelected == 0 || !delegateImpl.functionLabels[fnSelected].length()) {
-        fnSelected = stepFunction(0, 1);
+    if (fnSelected == UI::FN_NONE || !delegateImpl.functionLabels[fnSelected].length()) {
+        fnSelected = stepFunction(UI::FN_NONE, 1);
     }
     needRepaint = true;
 }
@@ -552,7 +552,7 @@ void tickFunctions() {
     const int16_t delta = encoder.consumeDelta();
     if (delta != 0) {
         noteInput();
-        if (fnSelected != 0) {
+        if (fnSelected != UI::FN_NONE) {
             const int steps = delta < 0 ? -delta : delta;
             for (int i = 0; i < steps; i++) {
                 fnSelected = stepFunction(fnSelected, delta < 0 ? -1 : 1);
@@ -561,7 +561,7 @@ void tickFunctions() {
         needRepaint = true;
     }
     const auto ev = encoder.consumeButtonEvent();
-    if (ev == EncoderHat::ButtonEvent::ShortPress && fnSelected != 0) {
+    if (ev == EncoderHat::ButtonEvent::ShortPress && fnSelected != UI::FN_NONE) {
         noteInput();
         const bool now = !delegateImpl.mirroredFunctions[fnSelected];
         wit.setFunction(THROTTLE_SLOT, fnSelected, now);
@@ -583,9 +583,9 @@ void tickFunctions() {
         delegateImpl.dirty = false;
         needRepaint = true;
         // Labels can arrive after the screen opens, or change with the loco.
-        if (fnSelected == 0 ||
+        if (fnSelected == UI::FN_NONE ||
             !delegateImpl.functionLabels[fnSelected].length()) {
-            fnSelected = stepFunction(0, 1);
+            fnSelected = stepFunction(UI::FN_NONE, 1);
         }
     }
     if (needRepaint) {
