@@ -5,7 +5,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
-#include "config.h"
+#include "CommonConfig.h"
 
 namespace Provision {
 

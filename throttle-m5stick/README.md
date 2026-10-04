@@ -165,13 +165,12 @@ BtnB leaves the Locos screen without changing loco.
 throttle-m5stick/
 ├── platformio.ini
 ├── boards/m5stick-c-plus2.json  board definition
-└── src/
+└── src/                         (AppDelegate, Provision and the Wi-Fi/NVS
+    │                            constants are in ../throttle-common/)
     ├── main.cpp                 state machine, setup() and loop()
-    ├── AppDelegate.h            WiThrottleProtocolDelegate subclass
     ├── UI.h / UI.cpp            M5GFX rendering helpers
     ├── EncoderHat.h / .cpp      I2C driver for the MiniEncoderC HAT
-    ├── Provision.h / .cpp       SoftAP + captive portal + NVS
-    └── config.h                 pin/I2C constants, NVS keys, tunables
+    └── config.h                 pin/I2C constants, tunables
 ```
 
 ## History and licence
@@ -189,6 +188,4 @@ fetched by PlatformIO, not copied in.
   function list handles momentary functions.
 - Unit tests for the speed/direction maths, encoder acceleration and
   reconnect backoff, moved into `lib/` like the turnout controller.
-- Shared code with the second throttle (#6) moves to `throttle-common/`
-  when that starts.
 - M5StickS3 support (reverted in the imported history).
