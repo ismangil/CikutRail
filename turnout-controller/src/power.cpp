@@ -68,8 +68,13 @@ bool setLed(uint8_t r, uint8_t g, uint8_t b) {
 bool buttonPressed(bool* pressed) { return g_available && g_pm1.btnGetState(pressed) == M5PM1_OK; }
 
 bool disableButtonActions() {
-  return g_available && g_pm1.setSingleResetDisable(true) == M5PM1_OK &&
-         g_pm1.setDoubleOffDisable(true) == M5PM1_OK && g_pm1.setDownloadLock(true) == M5PM1_OK;
+  if (!g_available) return false;
+  // Attempt all three: they are independent protections, so a transient
+  // failure on one must not skip the others.
+  const bool singleOk = g_pm1.setSingleResetDisable(true) == M5PM1_OK;
+  const bool doubleOk = g_pm1.setDoubleOffDisable(true) == M5PM1_OK;
+  const bool lockOk = g_pm1.setDownloadLock(true) == M5PM1_OK;
+  return singleOk && doubleOk && lockOk;
 }
 
 bool watchdogSet(uint8_t seconds) { return g_available && g_pm1.wdtSet(seconds) == M5PM1_OK; }
