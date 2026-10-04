@@ -37,14 +37,14 @@ and the Arduino_GFX source. Display, touch and the battery reading are confirmed
   and reading 32 bytes. The reset and interrupt pins are not wired in the demo.
   Raw X runs along the long edge, so the sketch swaps and flips the axes.
 - **Battery level:** ADC1 channel 3 (GPIO 4) behind a 1:3 divider; the demo
-  multiplies the calibrated millivolts by 3. Turning volts into a percentage
-  depends on case A (18650) or B (LiPo), which is still to be chosen.
+  multiplies the calibrated millivolts by 3. Case B (3.7 V LiPo) is the
+  one in use, so the percentage will come from a LiPo voltage curve (4.2 V full).
 - **Power button:** in the demo the TCA9554 expander pin 6 holds the battery
   power latch (drive it high to stay on, low to power off) and GPIO 16 reads
   the button. So firmware can read the button and can power the board off.
   Not tried yet. The demo's button code is under `Examples/Arduino/07_BATT_PWR_Test`.
 
-Still open: what BOOT does in the throttle, and the case A or B choice.
+Still open: what BOOT does in the throttle.
 
 ## Files
 
