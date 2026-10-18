@@ -53,7 +53,7 @@ struct Command {
   ResetKind resetKind = ResetKind::Soft;
   bool fiveVoltOffFirst = false;  // Reset: turn 5VOUT off before resetting
   ConfigKey configKey = ConfigKey::Show;
-  uint32_t configValue = 0;       // Config: ms, or 0/1 for startup (restore/low) and offline (hold/low)
+  uint32_t configValue = 0;       // Config: ms, or 0/1 for startup (restore/closed) and offline (hold/closed)
   WatchdogAction watchdog = WatchdogAction::Show;
   uint32_t watchdogS = 0;         // Watchdog Set: timeout in seconds
 };

@@ -7,7 +7,7 @@ Model railway control hardware and software, built around
 
 | Folder | What it is | Status |
 |---|---|---|
-| [`turnout-controller/`](turnout-controller/) | MQTT turnout node on an M5Stack Stamp-S3Bat, driving up to 11 turnouts through IoTT GreenHat coil drivers; emulates JMRI Raspberry Pi GPIO turnouts | Planning |
+| [`turnout-controller/`](turnout-controller/) | MQTT turnout node on an M5Stack Stamp-S3Bat, driving up to 11 turnouts through IoTT GreenHat coil drivers | Planning |
 | [`throttle-m5stick/`](throttle-m5stick/) | Handheld Wi-Fi throttle on an M5StickC Plus 2 with a MiniEncoderC HAT; drives locos and throws turnouts through JMRI's WiThrottle server | Imported, not yet run on the layout |
 | [`throttle-touch349/`](throttle-touch349/) | Handheld Wi-Fi throttle on a Waveshare ESP32-S3-Touch-LCD-3.49 (172 x 640 touch screen) | Bring-up only |
 | [`throttle-common/`](throttle-common/) | Code shared by the two throttles: WiThrottle delegate, Wi-Fi setup portal, reconnect constants | Library |

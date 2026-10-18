@@ -166,11 +166,11 @@ tc::Behaviour loadBehaviour() {
   tc::Behaviour behaviour = tc::defaultBehaviour();
   Preferences prefs;
   if (!prefs.begin(kBehaviourNamespace, true)) return behaviour;
-  if (prefs.getUChar("startup", 0) == static_cast<uint8_t>(tc::StartupLevel::Low)) {
-    behaviour.startup = tc::StartupLevel::Low;
+  if (prefs.getUChar("startup", 0) == static_cast<uint8_t>(tc::StartupLevel::Closed)) {
+    behaviour.startup = tc::StartupLevel::Closed;
   }
-  if (prefs.getUChar("offline", 0) == static_cast<uint8_t>(tc::OfflinePolicy::Low)) {
-    behaviour.offline = tc::OfflinePolicy::Low;
+  if (prefs.getUChar("offline", 0) == static_cast<uint8_t>(tc::OfflinePolicy::Closed)) {
+    behaviour.offline = tc::OfflinePolicy::Closed;
   }
   behaviour.feedback = prefs.getBool("feedback", false);
   const uint16_t stagger = prefs.getUShort("stagger", 0);

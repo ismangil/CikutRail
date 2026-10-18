@@ -15,7 +15,7 @@ namespace {
 // Survives software, panic and watchdog resets; random after power-on.
 RTC_NOINIT_ATTR tc::LevelSnapshot g_snapshot;
 
-const uint16_t kColdBootLevels = 0;  // all LOW = THROWN
+const uint16_t kColdBootLevels = tc::kAllChannelsMask;  // all HIGH = CLOSED
 const bool kColdBootHold = true;
 
 uint16_t g_levels = 0;  // turnout channels only; sensor bits stay 0
@@ -117,9 +117,9 @@ void applyStartup(tc::StartupLevel policy, bool haveSavedLevels, uint16_t savedL
   const uint16_t turnouts = tc::kAllChannelsMask & static_cast<uint16_t>(~g_channels.sensorMask);
 
   uint16_t target;
-  if (policy == tc::StartupLevel::Low) {
-    target = 0;
-    g_boot.source = LevelSource::PolicyLow;
+  if (policy == tc::StartupLevel::Closed) {
+    target = tc::kAllChannelsMask;
+    g_boot.source = LevelSource::PolicyClosed;
   } else if (g_boot.restored) {
     target = g_levels;  // newer than flash, which is written a little after each change
     g_boot.source = LevelSource::Rtc;
@@ -127,7 +127,7 @@ void applyStartup(tc::StartupLevel policy, bool haveSavedLevels, uint16_t savedL
     target = savedLevels;
     g_boot.source = LevelSource::Flash;
   } else {
-    target = 0;
+    target = tc::kAllChannelsMask;
     g_boot.source = LevelSource::NothingSaved;
   }
   g_levels = target & turnouts;
@@ -163,8 +163,9 @@ void setChannelConfig(const tc::ChannelConfig& channels) {
   const tc::ChannelConfig next = tc::normalised(channels);
   const uint16_t becomingTurnouts = g_channels.sensorMask & static_cast<uint16_t>(~next.sensorMask);
   g_channels = next;
-  // A channel that becomes a turnout starts LOW (THROWN).
-  g_levels &= static_cast<uint16_t>(~(g_channels.sensorMask | becomingTurnouts));
+  // A channel that becomes a turnout starts HIGH (CLOSED).
+  g_levels |= becomingTurnouts;
+  g_levels &= static_cast<uint16_t>(~g_channels.sensorMask);
   for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) setUpChannel(channel);
   saveSnapshot(0);
 }

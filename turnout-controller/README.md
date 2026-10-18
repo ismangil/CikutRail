@@ -3,8 +3,10 @@
 A Wi-Fi MQTT turnout node for JMRI, built on the
 [M5Stack Stamp-S3Bat](https://docs.m5stack.com/en/core/Stamp-S3Bat).
 It drives up to 11 turnouts through IoTT GreenHat Coil Driver boards from
-GPIO G1–G11, and behaves like JMRI's Raspberry Pi GPIO turnouts: `CLOSED`
-drives the pin HIGH, `THROWN` drives it LOW, as a steady level.
+GPIO G1–G11: `CLOSED` drives the pin HIGH, `THROWN` drives it LOW, as a
+steady level. HIGH is the GreenHat's idle level, so CLOSED turnouts don't
+move across a node reset; each coil is wired so that HIGH closes it
+([wiring](docs/WIRING.md#coil-polarity)).
 
 **Status:** phase 6. The node takes JMRI MQTT turnout commands over Wi-Fi,
 is set up from its own access point, has a config page on the home

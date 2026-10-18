@@ -182,18 +182,18 @@ bool parseBehaviourForm(const char* startup, const char* offline, const char* st
   offline = orEmpty(offline);
   if (strcmp(startup, "restore") == 0) {
     behaviour.startup = StartupLevel::Restore;
-  } else if (strcmp(startup, "low") == 0) {
-    behaviour.startup = StartupLevel::Low;
+  } else if (strcmp(startup, "closed") == 0) {
+    behaviour.startup = StartupLevel::Closed;
   } else {
-    message = "startup: restore or low";
+    message = "startup: restore or closed";
   }
   if (message == nullptr) {
     if (strcmp(offline, "hold") == 0) {
       behaviour.offline = OfflinePolicy::Hold;
-    } else if (strcmp(offline, "low") == 0) {
-      behaviour.offline = OfflinePolicy::Low;
+    } else if (strcmp(offline, "closed") == 0) {
+      behaviour.offline = OfflinePolicy::Closed;
     } else {
-      message = "JMRI offline: hold or low";
+      message = "JMRI offline: hold or closed";
     }
   }
   // parsePort accepts 1-65535; 0 is allowed here, so check it first.

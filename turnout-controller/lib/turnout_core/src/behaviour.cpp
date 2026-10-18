@@ -12,9 +12,9 @@ Behaviour defaultBehaviour() {
   return behaviour;
 }
 
-const char* startupLevelName(StartupLevel level) { return level == StartupLevel::Restore ? "restore" : "low"; }
+const char* startupLevelName(StartupLevel level) { return level == StartupLevel::Restore ? "restore" : "closed"; }
 
-const char* offlinePolicyName(OfflinePolicy policy) { return policy == OfflinePolicy::Hold ? "hold" : "low"; }
+const char* offlinePolicyName(OfflinePolicy policy) { return policy == OfflinePolicy::Hold ? "hold" : "closed"; }
 
 TurnoutScheduler::TurnoutScheduler()
     : m_staggerMs(0), m_minIntervalMs(0), m_nextOrder(0), m_anyChanged(false), m_lastAnyChangeMs(0) {

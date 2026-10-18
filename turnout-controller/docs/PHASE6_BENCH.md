@@ -70,7 +70,7 @@ pin to GND, ideally through 1 kΩ.
    back as a sensor (never driven) and republishes its state.
 8. **Sensor in JMRI.** Add `MS105`: it follows the input.
 9. **Back to turnout.** Set channel 5 back to *turnout*: the sensor topic
-   is cleared and the pin is driven LOW (THROWN).
+   is cleared and the pin is driven HIGH (CLOSED; LOW before 0.6.1).
 
 ## Results
 

@@ -26,8 +26,9 @@ spare).
 | 10 | G10 | right edge | `MT110` | D, IN1 |
 | 11 | G11 | right edge | `MT111` | D, IN2 |
 
-- 3.3 V push-pull outputs, the same as Raspberry Pi GPIO. `CLOSED` = HIGH,
-  `THROWN` = LOW (JMRI's "Inverted" setting swaps them).
+- 3.3 V push-pull outputs. `CLOSED` = HIGH, `THROWN` = LOW, for every
+  channel: wire each coil so that HIGH closes it (see
+  [Coil polarity](#coil-polarity)).
 - **G3** is an ESP32-S3 strapping pin (JTAG source select). It is normally
   harmless, but not yet checked through a reset (the phase 1 reset tests
   were skipped).
@@ -35,6 +36,44 @@ spare).
 Pins not used for turnouts: G0 (boot, driven by the PM1), G19/G20 (USB),
 G43/G44 (UART), G47/G48 (internal I2C to the PM1), G45/G46 (strapping).
 The firmware refuses these.
+
+### Coil polarity
+
+The GreenHat pulses the coil one way on a LOW→HIGH edge and the other way
+on HIGH→LOW, so which way a turnout moves depends on how its two coil
+wires go to the GreenHat output. Wire every turnout so that a **HIGH pin
+closes it**: if the config page shows THROWN while the turnout is closed,
+swap that turnout's two coil wires at the GreenHat (issue #13). Don't fix
+it in software: HIGH is the GreenHat's idle level, and with HIGH = CLOSED
+the turnouts that sit CLOSED, normally most of them, don't move when the
+node resets (see [Consequences](#consequences)).
+
+**Kato turnouts: red in `–`, black in `n`.** Each GreenHat output
+*n* (1, 2, 3) has a 4-way terminal block, silkscreened `– n A B` from
+left to right (seen from the wire side, labels upright). From the
+schematic (block T*n*, the same for all three outputs):
+
+| Silkscreen | Pin | Net | Driven by |
+|---|---|---|---|
+| `–` | 1 | DRV*n*-0 | the delayed side (RC delay, 74HC86 buffer, bridge half) |
+| `n` | 2 | DRV*n*-1 | the direct side (the input pin, straight into a bridge half) |
+| `A` | 3 | DRV*n*-R | the `–` terminal through a diode: twin-coil (3-wire) motors only |
+| `B` | 4 | DRV*n*-L | the `–` terminal through the opposite diode: twin-coil only |
+
+So a CLOSED edge (LOW→HIGH) drives `n` positive against `–` for the
+pulse (black + / red − with this wiring), and a THROWN edge drives `–`
+positive (red + / black −). The `–` doesn't mean ground: both terminals
+are bridge outputs. A and B stay unconnected for Kato's 2-wire motors.
+The bridges' enable, sleep and reset pins are tied to the GreenHat's 5 V
+logic rail, so the bridges are off whenever 5VOUT is off.
+
+Turnout 6's cable is built in and runs the right way like this, so every
+turnout follows it, including ones with a separate, swappable connector
+(turnout 4): fix polarity by moving the wires at the GreenHat, never by
+reversing a connector.
+
+JMRI's per-turnout "Inverted" setting would also swap the command, but
+not the reset behaviour or the config page, so leave it off.
 
 ## GreenHat input header (J1–J3, one per channel)
 
@@ -55,7 +94,7 @@ the node and all GreenHats share ground.
 - **J6 bridged** (standalone): the GreenHat's onboard regulator makes its
   5 V logic supply from the coil supply. Leave pin 2 unconnected.
 - **J6 open** (this layout): the GreenHat takes its 5 V logic supply
-  from pin 2, as it did from the Pi. Feed it from the node's **5VOUT**
+  from pin 2. Feed it from the node's **5VOUT**
   pad. The three headers on one GreenHat share the same 5 V rail, so one
   pin 2 per GreenHat is enough.
 
@@ -67,7 +106,7 @@ XOR gate plus the input pull-ups, about 0.5 mA per LOW input, so roughly
 checked from here, but a boost like this delivers far more than that.)
 
 The alternative is to feed pin 2 straight from the layout 5 V supply that
-feeds the node's **5VIN** pad. That works like the Pi, but the firmware
+feeds the node's **5VIN** pad. That works, but the firmware
 can't switch it. The 5VIN pad carries 5 V only when that supply is
 connected, not when the node runs from USB-C.
 
@@ -127,8 +166,6 @@ its input takes the wrong level.
    - **Unplanned resets** (crash, watchdog, PM1 button reset) happen
      with 5VOUT still on, so item 1 applies. Whether the PM1 keeps 5VOUT
      on through each kind of ESP32 reset is still open.
-   - With the Pi's always-on 5 V, every channel pulsed CLOSED at GreenHat
-     power-up and THROWN turnouts were then put back.
    - **Node power loss** (seen on the phase 2 bench): when the node loses
      power while the coil supply stays on, every CLOSED (HIGH) channel
      fires one THROWN pulse. The pin falls to 0 V faster than the
@@ -136,14 +173,18 @@ its input takes the wrong level.
      channels don't move. Firmware can't prevent it, since the node is
      unpowered. On restart the retained MQTT commands put those turnouts
      back with one CLOSED pulse, so they end where JMRI left them.
+     **On the bench** (node on USB-C, coils on their own supply): switch
+     the coil supply off before unplugging the node. A future board with
+     the node and the coil drivers on one supply loses both together; see
+     PLAN.md for what that board should do about it.
 3. **3.3 V into 5 V logic.** The XOR gate (U3) must be the
    Schmitt-trigger type: its hysteresis is what makes the delayed side
    switch cleanly once. (The BOM lists a plain 74HC86 because JLCPCB
    doesn't stock the Schmitt version; self-built boards need it fitted by
    hand.) Don't swap in a 74HCT86: it has no hysteresis.
    The gate runs at 5 V, and its worst-case rising threshold at 5 V can be
-   above the 3.3 V the node (or a Pi) drives. It works in practice, as your
-   boards show on the Pi, but it isn't guaranteed. Symptom if a gate ever
+   above the 3.3 V the node drives. It works in practice on this
+   layout's boards, but it isn't guaranteed. Symptom if a gate ever
    misses: the coil stays energised after a CLOSED command, and a snap
    coil at ~3 A overheats fast. Phase 1 checks that the coil current stops
    after each pulse. If a channel is marginal, use the open-collector
@@ -154,7 +195,7 @@ its input takes the wrong level.
    carry that.
 5. **Pull-up into an idle pin.** An undriven node pin is pulled towards
    5 V through 10.2 kΩ and clamped by the ESP32's protection diode: about
-   0.1–0.4 mA per pin, the same as on the Pi. With the GreenHats' 5 V
+   0.1–0.4 mA per pin. With the GreenHats' 5 V
    coming from the node's own 5VOUT, this only happens during a node
    reset.
 
@@ -206,8 +247,8 @@ would be pulled towards 5 V, beyond what the ESP32 pins tolerate.
 | **5VOUT** | Boost output switched by the PM1: GreenHat logic 5 V (header pin 2). |
 | **GND** | Common ground with all GreenHats. |
 
-GreenHats keep their coil supply and their J6 setting (open) as they
-were with the Pi; header pin 2 now comes from the node's 5VOUT. Don't
+GreenHats keep their own coil supply and have J6 open; header pin 2
+comes from the node's 5VOUT. Don't
 power the node from a GreenHat's onboard regulator: it isn't sized for
 the ESP32's Wi-Fi peaks.
 
