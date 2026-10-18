@@ -1,5 +1,5 @@
 // Channel modes (phase 6): each channel is a turnout output or a sensor
-// input, as JMRI's Raspberry Pi GPIO pins can be. Hardware-free.
+// input. Hardware-free.
 #pragma once
 
 #include <stdint.h>

@@ -223,7 +223,7 @@ ParseResult parseCommand(const char* line) {
     command.type = CommandType::Config;
     if (count == 1) return succeed(command);
     if (count != 3) {
-      return fail("usage: config [startup restore|low | offline hold|low | stagger <ms> | interval <ms> | feedback on|off]");
+      return fail("usage: config [startup restore|closed | offline hold|closed | stagger <ms> | interval <ms> | feedback on|off]");
     }
     const char* key = tokens[1];
     const char* value = tokens[2];
@@ -231,19 +231,19 @@ ParseResult parseCommand(const char* line) {
       command.configKey = ConfigKey::Startup;
       if (equalsIgnoreCase(value, "restore")) {
         command.configValue = static_cast<uint32_t>(StartupLevel::Restore);
-      } else if (equalsIgnoreCase(value, "low")) {
-        command.configValue = static_cast<uint32_t>(StartupLevel::Low);
+      } else if (equalsIgnoreCase(value, "closed") || equalsIgnoreCase(value, "low")) {  // "low": before 0.6.1
+        command.configValue = static_cast<uint32_t>(StartupLevel::Closed);
       } else {
-        return fail("startup: restore or low");
+        return fail("startup: restore or closed");
       }
     } else if (equalsIgnoreCase(key, "offline")) {
       command.configKey = ConfigKey::Offline;
       if (equalsIgnoreCase(value, "hold")) {
         command.configValue = static_cast<uint32_t>(OfflinePolicy::Hold);
-      } else if (equalsIgnoreCase(value, "low")) {
-        command.configValue = static_cast<uint32_t>(OfflinePolicy::Low);
+      } else if (equalsIgnoreCase(value, "closed") || equalsIgnoreCase(value, "low")) {  // "low": before 0.6.1
+        command.configValue = static_cast<uint32_t>(OfflinePolicy::Closed);
       } else {
-        return fail("offline: hold or low");
+        return fail("offline: hold or closed");
       }
     } else if (equalsIgnoreCase(key, "stagger")) {
       command.configKey = ConfigKey::Stagger;

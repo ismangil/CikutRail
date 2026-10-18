@@ -82,7 +82,7 @@ void defaultTurnoutNames(TurnoutNames* names);
 bool parseTurnoutNames(const char* const* fields, TurnoutNames* out, const char** error);
 
 // Builds behaviour settings from the config page's fields: startup
-// "restore"/"low", offline "hold"/"low", stagger and interval in ms,
+// "restore"/"closed", offline "hold"/"closed", stagger and interval in ms,
 // feedback "on" (a ticked checkbox) or anything else for off.
 bool parseBehaviourForm(const char* startup, const char* offline, const char* staggerMs, const char* intervalMs,
                         const char* feedback, Behaviour* out, const char** error);

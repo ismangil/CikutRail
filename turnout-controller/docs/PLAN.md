@@ -4,11 +4,13 @@
 
 A JMRI MQTT turnout node on an M5Stack Stamp-S3Bat, controlling up to 11
 turnouts over Wi-Fi through IoTT GreenHat Coil Driver boards, sold as the
-3-Channel Turnout Pulse Driver (3 channels each, so 4 boards). The GreenHats already work when wired to a Raspberry
-Pi running JMRI's GPIO turnouts, so the node reproduces that behaviour pin
-for pin, only with MQTT in between.
+3-Channel Turnout Pulse Driver (3 channels each, so 4 boards). The
+GreenHats first ran from a Raspberry Pi with JMRI's GPIO turnouts, so the
+node started out copying that pin for pin. Matching the Pi is no longer a
+requirement (issue #13): the node's behaviour is chosen for the GreenHats
+and this layout.
 
-## JMRI behaviour to reproduce
+## JMRI behaviour
 
 Taken from JMRI's source (`jmri/jmrix/pi/RaspberryPiTurnout.java`,
 `jmri/jmrix/mqtt/MqttTurnout.java`, `MqttAdapter.java`, MQTT
@@ -16,8 +18,8 @@ Taken from JMRI's source (`jmri/jmrix/pi/RaspberryPiTurnout.java`,
 
 | Behaviour | JMRI | Node |
 |---|---|---|
-| Pin level | Pi: CLOSED = HIGH, THROWN = LOW; "Inverted" swaps them | `CLOSED` → HIGH, `THROWN` → LOW, steady (not pulsed) |
-| Inversion | MQTT turnouts apply "Inverted" in JMRI before publishing | The node never inverts; JMRI's checkbox works as on the Pi |
+| Pin level | Pi: CLOSED = HIGH, THROWN = LOW; "Inverted" swaps them | `CLOSED` → HIGH, `THROWN` → LOW, steady (not pulsed). HIGH is the GreenHat's idle level, so CLOSED turnouts ride through a node reset; each coil is wired so HIGH closes it |
+| Inversion | MQTT turnouts apply "Inverted" in JMRI before publishing | The node never inverts; a turnout that moves the wrong way is rewired (WIRING.md, coil polarity) |
 | Topic | `<channel>track/turnout/{name}`, same topic for send and receive | Subscribe to `<channel>track/turnout/<name>`; channel configurable (empty on this layout) |
 | Delivery | Retained, QoS 2 | Retained commands restore every turnout on reconnect |
 | Other payloads | `UNKNOWN`, `INCONSISTENT` | Logged, pin untouched |
@@ -28,7 +30,7 @@ Taken from JMRI's source (`jmri/jmrix/pi/RaspberryPiTurnout.java`,
 Topic and naming rules shared with other projects are in
 [../../docs/MQTT_CONVENTIONS.md](../../docs/MQTT_CONVENTIONS.md).
 
-### Deliberate, configurable differences from the Pi
+### Behaviour settings
 
 The GreenHat turns every *level change* into one coil pulse, with the
 pulse length set by a trimmer on the board and the polarity set by the
@@ -38,25 +40,26 @@ in [WIRING.md](WIRING.md)):
 
 - **Startup level:** `restore` (default) re-applies the last state saved
   in flash as early in boot as possible, so turnouts end where JMRI left
-  them. `low` matches the Pi exactly (all pins LOW until JMRI commands
-  them, so every turnout pulses THROWN at startup). Either way, while the
+  them. `closed` sets every turnout CLOSED (HIGH, the idle level, so none
+  pulses) until JMRI's retained commands arrive. Before 0.6.1 this option
+  was `low` (all THROWN, as the Pi); `low` is still accepted and now means
+  `closed`. Either way, while the
   ESP32 is in reset its pins float and the GreenHat pull-ups take them
   HIGH, so THROWN turnouts give a CLOSED pulse and then a THROWN pulse
   across a node reset. CLOSED turnouts give none.
 - **JMRI goes offline** (`<channel>track/state` = `OFFLINE`, which JMRI
   publishes retained as its last will and on a clean quit): `hold`
-  (default) keeps every pin as it is. `low` matches the Pi's shutdown
-  behaviour; when JMRI connects again (it clears `track/state`), the node
+  (default) keeps every pin as it is. `closed` closes every turnout;
+  when JMRI connects again (it clears `track/state`), the node
   re-reads the retained commands so the pins match JMRI's table.
-- **Stagger:** optional delay between pin changes (default 0 ms, like the
-  Pi) to spread coil current on the GreenHats' coil supply when JMRI sends
+- **Stagger:** optional delay between pin changes (default 0 ms) to spread coil current on the GreenHats' coil supply when JMRI sends
   all turnouts at once.
-- **Minimum interval per turnout:** optional (default 0 ms, like the Pi).
+- **Minimum interval per turnout:** optional (default 0 ms).
   A reversal that arrives while the GreenHat's pulse is still running cuts
   that pulse short and can leave the turnout half-thrown. When set (to at
   least the trimmer's pulse length), a reversal is held back until the
   interval has passed. Only the latest command is kept.
-- **Output stage (not built yet):** `direct` (default, pin level as on the Pi) or
+- **Output stage (not built yet):** `direct` (default, CLOSED = HIGH) or
   `open-collector` (pin inverted, for a transistor stage between the node
   and the GreenHat; see WIRING.md).
 - **Button single-click reset:** disabled at startup, with double-click
@@ -81,7 +84,7 @@ Details in [WIRING.md](WIRING.md).
   power off are its defaults; the firmware disables both at startup and
   reads a long press through the PM1.
 - GreenHat inputs: 10.2 kΩ pull-up to 5 V, Schmitt-trigger XOR delay
-  stage at 5 V. Direct 3.3 V drive works (as on the Pi) but the gate's
+  stage at 5 V. Direct 3.3 V drive works in practice but the gate's
   worst-case threshold isn't guaranteed below 3.3 V. An optional
   open-collector transistor stage per channel removes that doubt.
   Header pin 2 is the GreenHat's 5 V logic rail. This layout's GreenHats
@@ -266,9 +269,14 @@ Each phase is tested on real hardware before the next starts.
 ## Open items
 
 - Losing node power with the coil supply still on makes CLOSED turnouts
-  pulse THROWN (WIRING.md, power sequencing). Decide whether the layout's
-  supplies need arranging so this can't happen, or whether the retained
-  restore is enough.
+  pulse THROWN (WIRING.md, power sequencing). On the bench (node on USB-C,
+  coils on their own supply), switch the coils off first. A planned
+  combined board (node and coil drivers on one board, one supply) loses
+  both together; it should also:
+  - let the MCU drive the bridge enable (the DRV8313's EN / nSLEEP), with
+    a pull-down so the bridges are off while the MCU is in reset or
+    unpowered: then neither a reset nor a power loss can pulse a coil;
+  - keep the input's idle level (its pull-up) meaning CLOSED, as now.
 - After a reset the pins float for about 190 ms, mostly in the
   bootloader's image check. A smaller image, or building the bootloader
   to skip the check on reset, would shorten it; the pin latch might cover

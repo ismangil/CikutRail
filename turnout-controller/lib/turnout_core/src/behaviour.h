@@ -12,12 +12,12 @@ namespace tc {
 
 enum class StartupLevel : uint8_t {
   Restore,  // last saved levels (default)
-  Low,      // all LOW, as JMRI's Pi GPIO turnouts start
+  Closed,   // all CLOSED (HIGH, the GreenHat's idle level)
 };
 
 enum class OfflinePolicy : uint8_t {
   Hold,  // keep every pin as it is (default)
-  Low,   // all LOW, as JMRI's Pi GPIO turnouts do on shutdown
+  Closed,  // all CLOSED
 };
 
 const uint16_t kMaxStaggerMs = 5000;
@@ -26,7 +26,7 @@ const uint16_t kMaxMinIntervalMs = 10000;
 struct Behaviour {
   StartupLevel startup;
   OfflinePolicy offline;
-  uint16_t staggerMs;      // between any two changes; 0 = none (as the Pi)
+  uint16_t staggerMs;      // between any two changes; 0 = none
   uint16_t minIntervalMs;  // between two changes of one turnout; 0 = none
   bool feedback;           // publish each turnout's pin state on .../state (JMRI MONITORING)
 };

@@ -131,7 +131,7 @@ void channelsSection(String& body) {
             "<p class=err><b>Sensor mode is only for pins wired to a switch or detector, never to a GreenHat:</b> "
             "a sensor pin isn't driven, so a GreenHat input on it floats HIGH and a THROWN turnout pulses. "
             "Inputs 3.3 V at most; a contact to GND with pull-up and active LOW is the usual wiring (a 1 k&Omega; "
-            "series resistor protects the pin). A channel switched back to turnout starts THROWN.</p>"
+            "series resistor protects the pin). A channel switched back to turnout starts CLOSED.</p>"
             "<button type=submit>Save channels</button></form></fieldset>");
 }
 
@@ -142,10 +142,10 @@ void behaviourSection(String& body) {
   formStart(body, "/behaviour");
   body += F("<label>At power-up <select name=startup>");
   option(body, "restore", "restore the last levels", behaviour.startup == tc::StartupLevel::Restore);
-  option(body, "low", "all LOW (THROWN), as the Pi", behaviour.startup == tc::StartupLevel::Low);
+  option(body, "closed", "all CLOSED", behaviour.startup == tc::StartupLevel::Closed);
   body += F("</select></label><label>When JMRI goes offline <select name=offline>");
   option(body, "hold", "hold every turnout", behaviour.offline == tc::OfflinePolicy::Hold);
-  option(body, "low", "all LOW (THROWN), as the Pi", behaviour.offline == tc::OfflinePolicy::Low);
+  option(body, "closed", "all CLOSED", behaviour.offline == tc::OfflinePolicy::Closed);
   body += F("</select></label>");
   snprintf(number, sizeof(number), "%u", behaviour.staggerMs);
   web::field(body, "Stagger", "stagger", "number", number, "(ms between any two changes, 0-5000)");

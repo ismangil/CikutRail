@@ -24,7 +24,7 @@ namespace {
 const uint32_t kSerialWaitMs = 1500;
 const uint32_t kFiveVoltOffSettleMs = 500;
 const char* const kFirmwareName = "CikutRail turnout-controller";
-const char* const kFirmwareVersion = "0.6.0-phase6";
+const char* const kFirmwareVersion = "0.6.1-phase6";
 const uint32_t kButtonPollMs = 50;
 const uint32_t kWatchdogFeedMs = 1000;
 // Levels go to flash this long after the last change, so a burst of
@@ -88,8 +88,8 @@ const char* levelSourceName(bank::LevelSource source) {
   switch (source) {
     case bank::LevelSource::Rtc: return "restore: levels from RTC memory (a reset)";
     case bank::LevelSource::Flash: return "restore: levels saved in flash (a power cut)";
-    case bank::LevelSource::NothingSaved: return "restore: nothing saved, all LOW (THROWN)";
-    case bank::LevelSource::PolicyLow: return "low: all LOW (THROWN)";
+    case bank::LevelSource::NothingSaved: return "restore: nothing saved, all CLOSED (HIGH)";
+    case bank::LevelSource::PolicyClosed: return "closed: all CLOSED (HIGH)";
   }
   return "";
 }
@@ -224,8 +224,8 @@ void printHelp() {
       "  net forget                erase the saved network settings, open the setup portal\n"
       "  portal [on|off]           show or switch the setup access point and page\n"
       "  config                    show behaviour settings\n"
-      "  config startup restore|low       levels at power-up: last saved, or all LOW\n"
-      "  config offline hold|low          when JMRI goes offline: keep, or all LOW\n"
+      "  config startup restore|closed    levels at power-up: last saved, or all CLOSED\n"
+      "  config offline hold|closed       when JMRI goes offline: keep, or all CLOSED\n"
       "  config stagger <ms>              0-5000 between any two changes (MQTT)\n"
       "  config interval <ms>             0-10000 between two changes of one turnout\n"
       "  wdt [off | <5-255> | hang]       PM1 watchdog: show, off, on with a timeout (until\n"
@@ -432,9 +432,9 @@ void handleJmriState(const net::Message& message) {
     Serial.println("JMRI OFFLINE: holding every turnout");
     return;
   }
-  Serial.println("JMRI OFFLINE: all turnouts LOW (THROWN)");
+  Serial.println("JMRI OFFLINE: all turnouts CLOSED");
   for (uint8_t channel = 1; channel <= tc::kChannelCount; ++channel) {
-    g_scheduler.request(channel, tc::TurnoutState::Thrown);
+    g_scheduler.request(channel, tc::TurnoutState::Closed);
   }
 }
 

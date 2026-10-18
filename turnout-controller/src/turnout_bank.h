@@ -16,8 +16,8 @@ namespace bank {
 enum class LevelSource : uint8_t {
   Rtc,           // after a reset: RTC memory, the levels just before it
   Flash,         // after a power cut: last levels saved in flash
-  NothingSaved,  // power cut, nothing in flash: all LOW
-  PolicyLow,     // startup policy "low": all LOW
+  NothingSaved,  // power cut, nothing in flash: all CLOSED (HIGH)
+  PolicyClosed,  // startup policy "closed": all CLOSED (HIGH)
 };
 
 struct BootReport {
@@ -52,7 +52,7 @@ void setState(uint8_t channel, tc::TurnoutState state);
 
 // Changes channel modes in place (the config page). A channel that
 // becomes a sensor stops being driven; one that becomes a turnout starts
-// LOW (THROWN).
+// HIGH (CLOSED).
 void setChannelConfig(const tc::ChannelConfig& channels);
 const tc::ChannelConfig& channelConfig();
 bool isSensorChannel(uint8_t channel);

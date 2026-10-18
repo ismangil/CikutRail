@@ -529,14 +529,15 @@ struct Bench {
   }
 };
 
-void test_behaviour_defaults_match_the_pi() {
+void test_behaviour_defaults() {
   const Behaviour b = defaultBehaviour();
   TEST_ASSERT_TRUE(b.startup == StartupLevel::Restore);
   TEST_ASSERT_TRUE(b.offline == OfflinePolicy::Hold);
   TEST_ASSERT_EQUAL_UINT16(0, b.staggerMs);
   TEST_ASSERT_EQUAL_UINT16(0, b.minIntervalMs);
   TEST_ASSERT_EQUAL_STRING("restore", startupLevelName(StartupLevel::Restore));
-  TEST_ASSERT_EQUAL_STRING("low", offlinePolicyName(OfflinePolicy::Low));
+  TEST_ASSERT_EQUAL_STRING("closed", startupLevelName(StartupLevel::Closed));
+  TEST_ASSERT_EQUAL_STRING("closed", offlinePolicyName(OfflinePolicy::Closed));
 }
 
 void test_scheduler_without_limits_applies_everything_at_once() {
@@ -636,9 +637,14 @@ void test_scheduler_ignores_bad_channels() {
 void test_config_commands() {
   TEST_ASSERT_TRUE(parseCommand("config").command.type == CommandType::Config);
   TEST_ASSERT_TRUE(parseCommand("config").command.configKey == ConfigKey::Show);
-  ParseResult r = parseCommand("config startup LOW");
+  ParseResult r = parseCommand("config startup CLOSED");
   TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Startup &&
-                   r.command.configValue == static_cast<uint32_t>(StartupLevel::Low));
+                   r.command.configValue == static_cast<uint32_t>(StartupLevel::Closed));
+  r = parseCommand("config startup low");  // the name before 0.6.1
+  TEST_ASSERT_TRUE(r.ok && r.command.configValue == static_cast<uint32_t>(StartupLevel::Closed));
+  r = parseCommand("config offline low");
+  TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Offline &&
+                   r.command.configValue == static_cast<uint32_t>(OfflinePolicy::Closed));
   r = parseCommand("config offline hold");
   TEST_ASSERT_TRUE(r.ok && r.command.configKey == ConfigKey::Offline &&
                    r.command.configValue == static_cast<uint32_t>(OfflinePolicy::Hold));
@@ -688,8 +694,8 @@ void test_parse_turnout_names() {
 void test_parse_behaviour_form() {
   Behaviour b;
   const char* error = nullptr;
-  TEST_ASSERT_TRUE_MESSAGE(parseBehaviourForm("low", "low", "250", "3000", "", &b, &error), error);
-  TEST_ASSERT_TRUE(b.startup == StartupLevel::Low && b.offline == OfflinePolicy::Low);
+  TEST_ASSERT_TRUE_MESSAGE(parseBehaviourForm("closed", "closed", "250", "3000", "", &b, &error), error);
+  TEST_ASSERT_TRUE(b.startup == StartupLevel::Closed && b.offline == OfflinePolicy::Closed);
   TEST_ASSERT_EQUAL_UINT16(250, b.staggerMs);
   TEST_ASSERT_EQUAL_UINT16(3000, b.minIntervalMs);
   TEST_ASSERT_FALSE(b.feedback);
@@ -947,7 +953,7 @@ int main() {
   RUN_TEST(test_form_first_setup_and_errors);
   RUN_TEST(test_html_escape);
   RUN_TEST(test_jmri_state_topic);
-  RUN_TEST(test_behaviour_defaults_match_the_pi);
+  RUN_TEST(test_behaviour_defaults);
   RUN_TEST(test_scheduler_without_limits_applies_everything_at_once);
   RUN_TEST(test_scheduler_drops_requests_that_already_match);
   RUN_TEST(test_scheduler_stagger_spaces_changes_oldest_first);

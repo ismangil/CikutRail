@@ -1,6 +1,8 @@
-// Turnout state and its pin level, as JMRI's Raspberry Pi GPIO turnouts
-// define it: CLOSED drives the pin HIGH, THROWN drives it LOW. JMRI applies
-// its "Inverted" setting before the command reaches the node.
+// Turnout state and its pin level: CLOSED drives the pin HIGH, THROWN
+// drives it LOW. HIGH is the GreenHat's idle level (its input pull-up), so
+// a CLOSED turnout doesn't move while the node isn't driving its pin. Each
+// coil is wired so that HIGH closes it (see WIRING.md). JMRI's "Inverted"
+// setting, if used, is applied before the command reaches the node.
 #pragma once
 
 #include <stdint.h>
