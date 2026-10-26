@@ -20,6 +20,9 @@ its own folder.
 - [`docs/MQTT_CONVENTIONS.md`](docs/MQTT_CONVENTIONS.md): the layout-wide
   MQTT rules (JMRI channel, topics, turnout number ranges, node status
   topics). Every project follows them.
+- [`docs/BLOCKS.md`](docs/BLOCKS.md): the occupancy-detection block plan
+  (blocks, insulated-joiner positions, wiring) with the annotated track
+  plan in `docs/layout-blocks.png`.
 - [`docs/JMRI_WITHROTTLE.md`](docs/JMRI_WITHROTTLE.md): the JMRI WiThrottle
   server the throttles connect to.
 
