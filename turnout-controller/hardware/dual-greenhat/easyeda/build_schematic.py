@@ -36,7 +36,7 @@ CAT = {
     "R10K": ("C25744", "10k"),          # 0402, Basic
     "R100K": ("C25741", "100k"),        # 0402, Basic
     "R18K": ("C25810", "18k"),          # 0603, Basic
-    "R0": ("C17477", "0R"),             # 0805, Basic (5 V link)
+    "R0": ("C17477", "0R"),             # 0805, Basic (5 V link, buck input link)
     "C100N": ("C307331", "100nF 50V"),  # 0402, Basic
     "C10N": ("C15195", "10nF 50V"),     # 0402, Basic
     "C470N": ("C47339", "470nF 10V"),   # 0402
@@ -74,11 +74,14 @@ def power_sheet():
     part(s, "C1", "C22U1206", {1: "VM", 2: "GND"})
     part(s, "C2", "C22U1206", {1: "VM", 2: "GND"})
     # 12 V -> 5 V buck (TPS563201, datasheet table 7-2 for 5 V out)
-    part(s, "U1", "BUCK", {1: "GND", 2: "BUCK_SW", 3: "VM", 4: "BUCK_FB",
+    # R5 separates the buck's input (VM_BUCK) from the coil rail. It's a
+    # 0 ohm link; fit 1 ohm or an 0805 ferrite bead to filter coil pulses.
+    part(s, "R5", "R0", {1: "VM", 2: "VM_BUCK"})
+    part(s, "U1", "BUCK", {1: "GND", 2: "BUCK_SW", 3: "VM_BUCK", 4: "BUCK_FB",
                            5: "BUCK_EN", 6: "BUCK_BST"})
-    part(s, "C3", "C10U", {1: "VM", 2: "GND"})
-    part(s, "C4", "C10U", {1: "VM", 2: "GND"})
-    part(s, "C5", "C100N", {1: "VM", 2: "GND"})
+    part(s, "C3", "C10U", {1: "VM_BUCK", 2: "GND"})
+    part(s, "C4", "C10U", {1: "VM_BUCK", 2: "GND"})
+    part(s, "C5", "C100N", {1: "VM_BUCK", 2: "GND"})
     part(s, "R1", "R100K", {1: "VM", 2: "BUCK_EN"})
     part(s, "C6", "C100N", {1: "BUCK_BST", 2: "BUCK_SW"})
     part(s, "L1", "L3U3", {1: "BUCK_SW", 2: "5V_BUCK"})
@@ -110,10 +113,14 @@ def block_sheet(b, chans):
         a, bb, y = gates[i]
         xor_pins.update({a: f"RD{k}", bb: "GND", y: f"DL{k}"})         # XOR as buffer
     part(s, xor, "XOR", xor_pins)
-    # One 6-way terminal per block: pins 1-2 first channel's coil, 3-4 second, 5-6 third
+    # One 6-way terminal per block, numbered against the channels: pins 1-2
+    # are the third channel's coil, 3-4 the second, 5-6 the first. Within a
+    # pair the lower pin is B (delayed side), the higher is A (direct side).
+    # That's the order the driver outputs arrive in (see build_pcb.py), so
+    # the coil traces don't cross.
     term = {}
-    for i, k in enumerate(chans):
-        term[2 * i + 1], term[2 * i + 2] = f"T{k}_A", f"T{k}_B"
+    for i, k in enumerate(reversed(chans)):
+        term[2 * i + 1], term[2 * i + 2] = f"T{k}_B", f"T{k}_A"
     part(s, f"J{n+1}", "TERM6", term)
     part(s, f"C{n+7}", "C100N", {1: "VCC5V", 2: "GND"})
 

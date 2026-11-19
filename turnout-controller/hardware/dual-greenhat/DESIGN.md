@@ -57,7 +57,11 @@ and the [KiCad footprint](https://github.com/m5stack/M5_Hardware/blob/master/KiC
 
 **Mechanics**
 
-- Module 18.0 × 29.8 mm, 12 mm tall including the pins.
+- Module 18.0 × 29.8 mm, 12 mm tall including the pins. From M5Stack's
+  footprint, the 29.8 mm is a 28.0 mm PCB plus the USB-C shell, which
+  sticks out 1.85 mm. Pin 9 is 1.3 mm in from the PCB's USB-C edge, and
+  pin 1 is 6.35 mm in from the far edge. Those figures are from the
+  castellated module's footprint: check them against the DIP size drawing.
 - Two rows of 9 pins at 2.54 mm pitch, rows **15.24 mm apart** (6 × 2.54),
   so the socket sits on the 0.1″ grid: a 600 mil DIP-18 layout. The rows
   are 1.38 mm in from the long edges.
@@ -89,7 +93,7 @@ the left. Pin 1 is the far end of each row, pin 9 the USB-C end.)
 | 6 | GND | logic GND | G10 | not connected |
 | 7 | **5VOUT** | VCC5.0 (GreenHat logic) | G11 | not connected |
 | 8 | G6 | ch6 | WAKE (PY_G4_WAKE) | not connected |
-| 9 | G7 | not connected (spare test pad) | GND | logic GND |
+| 9 | G7 | not connected (probe at the socket pin) | GND | logic GND |
 
 So the **left row alone** carries all six channels, 5VOUT and GND. The
 right row carries the 5VIN feed, GND and the optional 3V3 pull-up rail;
@@ -159,7 +163,7 @@ Shared parts per GreenHat:
 | 12 V → 5 V buck | none | **new**: feeds the S3Bat's 5VIN (see "Node power") |
 | Input headers J1–J3 | 6 | **none**. GPIOs routed on the board |
 | GND / PwrGND | joined by J6 or wiring | **joined on the board** at one point near the power terminal |
-| Test pins J7/J8 | 4 | optional test pads |
+| Test pins J7/J8 | 4 | none (probe at R4 and the socket pins) |
 
 ### Logic rail: S3Bat 5VOUT
 
@@ -249,13 +253,15 @@ pin 1).
   worth it for a wide input range.
 - **Keep it away from the antenna:** put the buck and its inductor at the
   power-terminal end of the board, not under or beside the S3Bat.
-- **Input filtering:** bulk capacitance at the buck input, so a coil pulse
-  on the shared 12 V doesn't brown out the node. A small series
-  resistor or ferrite between VM and the buck input, with its own
-  capacitor, helps further.
-- **Solder jumper** in the 5 V line to 5VIN, closed by default, so the
-  node can be bench-tested from USB-C with the buck disconnected. Add a
-  5 V test pad.
+- **Input filtering:** the buck has its own input rail, `VM_BUCK`, with
+  its own capacitors (C3–C5), so a coil pulse on the shared 12 V doesn't
+  brown out the node. **R5** (0805) joins it to VM. It's a 0 Ω link as
+  built; if coil pulses do disturb the node, swap it for 1 Ω or an 0805
+  ferrite bead.
+- **R4**, a 0 Ω link (0805) in the 5 V line to 5VIN: remove it to
+  bench-test the node from USB-C with the buck disconnected. There are no
+  separate test pads; measure the buck's 5 V on R4's pads and 5VIN on
+  socket pin J3.1.
 - **USB-C still works:** 5VIN and USB-C each go through their own ideal
   diode on the S3Bat, so flashing over USB-C with 12 V present is fine.
 
@@ -323,21 +329,37 @@ The GreenHat's 1 MΩ trimmers are left out.
 
 ### Outputs and turnout direction
 
-Each turnout uses a pair of terminal pins carrying `DRVn-0` / `DRVn-1`: on J101, pins 1–2 are channel 1, 3–4 channel 2 and 5–6 channel 3; J201 does the same for channels 4–6. A Kato coil moves one
-way or the other depending on polarity, so a turnout wired backwards is
-fixed by swapping its two wires or setting JMRI's "Inverted". Label the
-pins on the silkscreen consistently, e.g. `1A/1B` … `6A/6B`.
+Each turnout uses a pair of terminal pins. The terminals are numbered
+against the channels, so that the coil traces run from the drivers to the
+terminals without crossing (see "PCB placement"):
+
+- **J101:** pins 1–2 are channel 3, 3–4 channel 2, 5–6 channel 1.
+- **J201:** pins 1–2 are channel 6, 3–4 channel 5, 5–6 channel 4.
+- **Within a pair:** the lower pin is **B**, the delayed side (the
+  GreenHat's `–` terminal, `DRVn-0`); the higher pin is **A**, the direct
+  side (the GreenHat's `n` terminal, `DRVn-1`).
+
+On the board, the channels then run 6 to 1 from left to right.
+
+A Kato coil moves one way or the other depending on polarity. Wire every
+turnout so that a **HIGH pin closes it**, as WIRING.md requires for the
+GreenHats: Kato's red wire in B, black in A. A turnout that moves the
+wrong way is fixed by swapping its two wires at the terminal, not with
+JMRI's "Inverted" setting (issue #13).
+
+Label the pins on the silkscreen `6B 6A 5B 5A 4B 4A` (J201) and
+`3B 3A 2B 2A 1B 1A` (J101).
 
 ## Channel map
 
 | Channel | S3Bat pad | Driver block | Terminal |
 |---|---|---|---|
-| 1 | G1 | A, ch1 | J101 pins 1–2 |
+| 1 | G1 | A, ch1 | J101 pins 5–6 |
 | 2 | G2 | A, ch2 | J101 pins 3–4 |
-| 3 | G3 | A, ch3 | J101 pins 5–6 |
-| 4 | G4 | B, ch1 | J201 pins 1–2 |
+| 3 | G3 | A, ch3 | J101 pins 1–2 |
+| 4 | G4 | B, ch1 | J201 pins 5–6 |
 | 5 | G5 | B, ch2 | J201 pins 3–4 |
-| 6 | G6 | B, ch3 | J201 pins 5–6 |
+| 6 | G6 | B, ch3 | J201 pins 1–2 |
 
 All six are on the S3Bat's **left** row, together with 5VOUT and GND
 (see "The Stamp-S3Bat DIP socket").
@@ -380,7 +402,7 @@ No layout yet, so this is an estimate.
    - Inductor: 3.3 µH Sunlord SWPA4030S3R3MT (C15269, 2.4 A).
    - Output: 2 × 22 µF.
    - Feedback divider: 100 kΩ / 18 kΩ (5.03 V), both Basic parts.
-   - Input: 2 × 10 µF + 100 nF.
+   - Input: 2 × 10 µF + 100 nF, behind the R5 link.
    - Bootstrap: 100 nF.
    - EN: pulled up to VIN through 100 kΩ (EN is rated to 19 V).
 3. **Kato coil figures** (current at 12 V) for trace sizing.
@@ -451,16 +473,30 @@ leaves the board or crowds a mounting hole.
 
 | Area | Parts |
 |---|---|
-| Top edge | J101 (channels 1–3) and J201 (channels 4–6) on the left, a mounting hole, J1 (12 V in) on the right |
-| Band below | the four DRV8313s in a row (U102, U103, U202, U203) |
+| Top edge | J201 (channels 6–4) and J101 (channels 3–1) on the left, a mounting hole, J1 (12 V in) on the right |
+| Band below | the four DRV8313s in a row (U203, U202, U103, U102) |
 | Around the drivers | charge-pump and VM caps above each driver, V3P3 and second VM caps below, 22 µF bulk per block |
-| Right column | F1, D1, bulk caps, then the buck (U1, L1, R1–R4, C3–C8) |
+| Right column | F1, D1, bulk caps, then the buck (U1, L1, R1–R5, C3–C8) |
 | Bottom left | the Stamp-S3Bat sockets J2 (G-row, on top) and J3, with USB-C at the left board edge |
 | Bottom middle | U101/U201 (74HCT86) and each channel's RC parts |
 
 - **Drivers rotated 180°:** pins 1–14 (charge pump, VM, coil outputs) face
   the terminals, and pins 15–28 (logic inputs) face the XORs and the
   S3Bat.
+- **Coil traces don't cross:** rotated like that, each driver's outputs
+  run OUT3, OUT2, OUT1 from left to right. So the drivers stand in
+  reverse order and the terminals are numbered to match: the twelve
+  outputs reach the twelve terminal pins in the same left-to-right order.
+- **The buck's parts sit at its pins.** U1 is rotated 90°, with GND, SW
+  and VIN facing down:
+  - C3 lies right below, with one pad under VIN and the other under GND.
+    That is the switching loop, about 2 mm long. C5 and C4 stack below it.
+  - SW leaves under U1's body: left to the bootstrap capacitor C6, right
+    to L1.
+  - The feedback divider (R2, R3) and the EN pull-up (R1) sit directly
+    above their pins.
+  - The output capacitors (C7, C8) and R4 sit at L1's output pad.
+  - VM reaches R5 from below, on the bottom layer or around C4.
 - **The S3Bat's G-row:** it faces the logic, so the six input traces are
   short.
 - **The buck:** it sits in the far corner from the module's USB end.
@@ -479,8 +515,9 @@ copper pours, traces and vias.
   face the top board edge. Check in the 3D view and rotate 180° if not.
 - **Where the S3Bat's antenna is:** keep copper pour (top and bottom)
   away from under that end of the module.
-- **The module's outline:** 18 × 29.8 mm. It sits above J2/J3, so nothing
-  tall may go under it. C107 and C207 sit just outside it.
+- **The module's outline:** its PCB is 18 × 28.0 mm and ends about 2 mm
+  short of C107 and C207; the USB-C shell reaches the carrier's left
+  edge. It sits above J2/J3, so nothing tall may go under it.
 
 ## Next steps
 
@@ -488,7 +525,8 @@ copper pours, traces and vias.
    Source) and do the checks under "PCB placement".
 2. Route the power path by hand first:
    - J1 → F1 → D1 → the VM bus;
-   - the buck, with its switching loop kept tight;
+   - the buck: C3 to U1's VIN and GND pins first, then SW under U1's
+     body to C6 and L1 (see "PCB placement");
    - the coil outputs to J101/J201;
    - VM to each driver.
 3. Add a GND pour on the bottom layer, with vias under each DRV8313's
@@ -498,3 +536,11 @@ copper pours, traces and vias.
 5. Run DRC, then export Gerbers, BOM and pick-and-place. Add the Gerbers
    and a schematic PDF to this folder, as the TAPR OHL requires.
 6. Order a small batch; bench-test against PHASE1_BENCH.md.
+
+## Other files
+
+`../Kato Wireless Turnout Controller.eprj2` is an EasyEDA Pro project
+holding an import of an early schematic, from before the 6-way terminals,
+the PCB placement and the R5 link. It's out of date: re-import
+`DualGreenHat_schematic.json` instead of working from it. It's covered by
+the same license as this folder (see [LICENSE.md](LICENSE.md)).

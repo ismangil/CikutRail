@@ -50,3 +50,21 @@ new files ("after" versions) are:
     (easyeda/build_pcb.py, easyeda/DualGreenHat_pcb.json,
     easyeda/placement.svg, footprints in easyeda/fp/). Gerbers and PDF
     exports will be added here when made.
+
+2026-11-19  Perry Ismangil
+  Circuit
+  - Turnout terminals renumbered against the channels: J101 pins 1-2 are
+    channel 3, 3-4 channel 2, 5-6 channel 1 (J201: channels 6, 5, 4). In
+    each pair the lower pin is the delayed side (B), the higher the direct
+    side (A).
+  - Added R5, a 0 Ohm link (0805) between VM and the buck converter's
+    input. The buck's input capacitors C3-C5 are now behind it, on the new
+    net VM_BUCK.
+  PCB placement
+  - Drivers placed in the order U203, U202, U103, U102 and the terminals
+    moved over them, so the coil traces don't cross.
+  - Buck converter parts moved to the pins they serve: U1 rotated 90
+    degrees, C3 across VIN and GND, C6 at BST, R1-R3 at EN and FB, L1 and
+    C7/C8 at SW.
+  - Placement sketch: Stamp-S3Bat outline corrected (28.0 mm PCB plus the
+    USB-C shell).

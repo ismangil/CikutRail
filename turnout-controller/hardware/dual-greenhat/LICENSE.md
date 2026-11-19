@@ -5,6 +5,10 @@ Documentation subject to the **TAPR Open Hardware License, version 1.0**
 (<http://www.tapr.org/OHL>). So is any board or kit made from it. The full
 text is in [TAPR_Open_Hardware_License_v1.0.pdf](TAPR_Open_Hardware_License_v1.0.pdf).
 
+The same applies to the EasyEDA Pro project one folder up,
+`../Kato Wireless Turnout Controller.eprj2`, which holds an earlier import
+of this board's schematic.
+
 This board is derived from the **IoTT GreenHat Coil Driver, rev 1.0**
 (Hans R. Tanner, IoTT, 2021), published under the TAPR OHL v1.0 in
 [tanner87661/IoTTStick](https://github.com/tanner87661/IoTTStick/tree/master/Hat%20Devices/GreenHat%20Power%20Extension).

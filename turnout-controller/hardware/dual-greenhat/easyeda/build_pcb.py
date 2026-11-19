@@ -37,8 +37,8 @@ HOLE_D = 3.2
 # Floorplan: ref -> (x mm, y mm, rotation deg). Board top-left is (0, 0),
 # y grows downwards; rotation is clockwise as seen from the top.
 #
-#   top edge     J101 (ch1-3)  J201 (ch4-6)   [hole]   J1 12 V in
-#   band 2       U102  U103  U202  U203 (DRV8313)      F1, D1, bulk
+#   top edge     J201 (ch6-4)  J101 (ch3-1)   [hole]   J1 12 V in
+#   band 2       U203  U202  U103  U102 (DRV8313)      F1, D1, bulk
 #   band 3       driver caps, bulk 22 uF               buck U1/L1 ...
 #   bottom left  Stamp-S3Bat (J2 G-row on top, USB-C at the left edge)
 #   bottom mid   U101/U201 74HCT86 + RC delays
@@ -46,26 +46,39 @@ HOLE_D = 3.2
 
 PLACE = {
     # connectors along the top edge (wires leave upwards)
-    "J101": (10.0, 4.3, 0), "J201": (27.0, 4.3, 0), "J1": (62.0, 5.5, 0),
+    # each terminal sits over its two drivers' outputs; channels run 6..1
+    # from left to right (see driver_block)
+    "J201": (14.0, 4.3, 0), "J101": (35.0, 4.3, 0), "J1": (62.0, 5.5, 0),
     # Stamp-S3Bat DIP: rows 15.24 mm apart; pin 1 at the right, pin 9 at
     # the left next to USB-C (rotation 180 puts pad 1 on the right)
     "J2": (13.16, 38.0, 180), "J3": (13.16, 53.24, 180),
     # power entry, right column
     "F1": (61.0, 13.0, 0), "D1": (61.0, 17.8, 180),
     "C1": (57.6, 22.2, 0), "C2": (64.8, 22.2, 0),
-    # buck converter
-    "U1": (60.0, 29.0, 0), "L1": (66.0, 29.5, 90),
-    "C3": (54.5, 27.5, 90), "C4": (54.5, 32.0, 90), "C5": (57.0, 33.5, 0),
-    "R1": (62.5, 33.5, 0), "C6": (62.5, 25.8, 0),
-    "C7": (66.5, 35.5, 90), "C8": (66.5, 40.0, 90),
-    "R2": (60.0, 36.0, 0), "R3": (60.0, 38.3, 0), "R4": (60.0, 41.5, 0),
+    # Buck converter, U1 rotated 90: pins 1-3 (GND, SW, VIN) face down,
+    # pins 4-6 (FB, EN, BST) face up. Each part sits at the pin it serves:
+    #   C3   straddles VIN and GND right below the pins (the switching
+    #        loop), with C5 and C4 stacked below it on the same two columns
+    #   SW   leaves under U1's body: left to C6 (bootstrap), right to L1
+    #   R2/R3 (feedback) and R1 (EN) directly above their pins
+    #   C7/C8 at L1's output pad; R4 next to them; R5 feeds VM_BUCK from VM
+    "U1": (59.5, 29.5, 90), "L1": (65.4, 29.5, 0),
+    "C3": (59.5, 32.6, 180), "C5": (59.5, 34.4, 180), "C4": (59.5, 36.2, 180),
+    "C6": (56.9, 29.0, 90),
+    "R1": (59.1, 26.2, 90), "R2": (60.45, 26.2, 90), "R3": (61.9, 25.7, 270),
+    "C7": (66.0, 32.8, 180), "C8": (66.0, 34.9, 180), "R4": (66.0, 37.2, 180),
+    "R5": (62.75, 34.6, 270),
 }
 
 
 def driver_block(u, x, c):
     """DRV8313 at (x, 15), rotated so pins 1-14 (charge pump, VM, coil
     outputs) face the terminals and pins 15-28 (logic) face the XORs.
-    Pin 1 is then at the top right, pin 15 at the bottom left."""
+    Pin 1 is then at the top right, pin 15 at the bottom left, so the
+    outputs run OUT3, OUT2, OUT1 from left to right. The drivers are
+    therefore placed in reverse order (U203, U202, U103, U102) and the
+    terminals numbered to match: every coil trace runs straight up to its
+    terminal pin without crossing another."""
     PLACE[u] = (x, 15.0, 180)
     PLACE[f"C{c}"] = (x + 4.3, 9.9, 90)      # CP1-CP2, next to pins 1-2
     PLACE[f"C{c+1}"] = (x + 2.9, 9.9, 90)    # VCP-VM, pins 3-4
@@ -74,12 +87,12 @@ def driver_block(u, x, c):
     PLACE[f"C{c+4}"] = (x + 1.9, 20.1, 90)   # second VM bypass (via to VM)
 
 
-driver_block("U102", 8.0, 108)
-driver_block("U103", 20.0, 113)
-driver_block("U202", 32.0, 208)
-driver_block("U203", 44.0, 213)
-PLACE["C118"] = (14.0, 25.4, 0)
-PLACE["C218"] = (38.0, 25.4, 0)
+driver_block("U203", 8.0, 213)
+driver_block("U202", 20.0, 208)
+driver_block("U103", 32.0, 113)
+driver_block("U102", 44.0, 108)
+PLACE["C218"] = (14.0, 25.4, 0)
+PLACE["C118"] = (38.0, 25.4, 0)
 
 
 def xor_block(n, y):
@@ -98,7 +111,7 @@ xor_block(100, 28.5)
 xor_block(200, 40.0)
 
 # Nets that carry coil or supply current get wider tracks.
-POWER_NETS = ["V12_IN", "V12_F", "VM", "GND", "BUCK_SW", "5V_BUCK", "5VIN"] + [
+POWER_NETS = ["V12_IN", "V12_F", "VM", "VM_BUCK", "GND", "BUCK_SW", "5V_BUCK", "5VIN"] + [
     f"T{k}_{s}" for k in range(1, 7) for s in "AB"]
 
 # --------------------------------------------------------------------------
@@ -357,11 +370,19 @@ def check(boxes):
 def preview(boxes, pad_nets):
     s = 8  # px per mm
     el = [f'<rect x="0" y="0" width="{BOARD_W*s}" height="{BOARD_H*s}" fill="#1a4d2e" stroke="#f0f"/>']
-    # module body (18 x 29.8 mm) over the sockets, USB-C at the left
-    el.append(f'<rect x="{1.7*s}" y="{36.6*s}" width="{29.8*s}" height="{18*s}" fill="none" '
+    # Module over the sockets, USB-C at the left. From M5Stack's footprint:
+    # the module's PCB is 18 x 28.0 mm and starts 1.3 mm outside pin 9; the
+    # USB-C shell (9 mm wide) sticks out another 1.85 mm, which makes the
+    # 29.8 mm overall length and brings the shell to the carrier's edge.
+    px0 = min(p[0] for p in pad_nets["J2"])
+    mx0 = (px0 - ORIGIN[0]) / MM - 1.3
+    my0 = (pad_nets["J2"][0][1] - ORIGIN[1]) / MM - 1.38
+    el.append(f'<rect x="{mx0*s:.1f}" y="{my0*s:.1f}" width="{28.0*s}" height="{18*s}" fill="none" '
               f'stroke="#9cf" stroke-dasharray="4 3"/>')
+    el.append(f'<rect x="{(mx0-1.85)*s:.1f}" y="{(my0+4.5)*s:.1f}" width="{1.85*s}" height="{9*s}" '
+              f'fill="none" stroke="#9cf" stroke-dasharray="4 3"/>')
     el.append(f'<text x="{2.2*s}" y="{46*s}" fill="#9cf" font-size="11">USB-C</text>')
-    el.append(f'<text x="{12*s}" y="{46.5*s}" fill="#9cf" font-size="11">Stamp-S3Bat (above sockets)</text>')
+    el.append(f'<text x="{9*s}" y="{46.5*s}" fill="#9cf" font-size="11">Stamp-S3Bat (above sockets)</text>')
     for hx, hy in HOLES:
         el.append(f'<circle cx="{hx*s}" cy="{hy*s}" r="{HOLE_D/2*s}" fill="#000" stroke="#ccc"/>')
     for r, (a0, a1, a2, a3) in boxes.items():
