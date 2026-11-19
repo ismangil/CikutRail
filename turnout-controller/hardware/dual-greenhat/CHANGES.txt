@@ -64,7 +64,8 @@ new files ("after" versions) are:
   - Drivers placed in the order U203, U202, U103, U102 and the terminals
     moved over them, so the coil traces don't cross.
   - Buck converter parts moved to the pins they serve: U1 rotated 90
-    degrees, C3 across VIN and GND, C6 at BST, R1-R3 at EN and FB, L1 and
-    C7/C8 at SW.
+    degrees, C3 across VIN and GND with room for the SW via, C6 at BST,
+    R1-R3 at EN and FB, L1 and C7/C8 at SW (TPS563201 datasheet, figure
+    7-18).
   - Placement sketch: Stamp-S3Bat outline corrected (28.0 mm PCB plus the
     USB-C shell).

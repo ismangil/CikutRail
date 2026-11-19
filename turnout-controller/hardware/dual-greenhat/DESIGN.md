@@ -398,10 +398,15 @@ No layout yet, so this is an estimate.
    orientation (USB-C end) and that the pins fit the chosen female
    headers.
 2. **Buck converter passives:** chosen from the TPS563201 datasheet
-   (table 7-2, 5 V row).
-   - Inductor: 3.3 µH Sunlord SWPA4030S3R3MT (C15269, 2.4 A).
-   - Output: 2 × 22 µF.
-   - Feedback divider: 100 kΩ / 18 kΩ (5.03 V), both Basic parts.
+   (table 7-2, 5 V row), checked against revision B (September 2024).
+   - Inductor: 3.3 µH Sunlord SWPA4030S3R3MT (C15269, 2.4 A). 3.3 µH is
+     the table's typical value (range 3.3–4.7 µH).
+   - Output: 2 × 22 µF in 0805. The table asks for 20–68 µF, and a 25 V
+     0805 part loses capacitance at 5 V, so this may fall below 20 µF.
+     **Still to decide:** the 1206 part already on the board (C12891).
+   - Feedback divider: 100 kΩ / 18 kΩ (5.03 V), both Basic parts. The
+     table uses 54.9 kΩ / 10 kΩ, and the datasheet warns that higher
+     values pick up more noise. **Still to decide.**
    - Input: 2 × 10 µF + 100 nF, behind the R5 link.
    - Bootstrap: 100 nF.
    - EN: pulled up to VIN through 100 kΩ (EN is rated to 19 V).
@@ -489,10 +494,14 @@ leaves the board or crowds a mounting hole.
   outputs reach the twelve terminal pins in the same left-to-right order.
 - **The buck's parts sit at its pins.** U1 is rotated 90°, with GND, SW
   and VIN facing down:
-  - C3 lies right below, with one pad under VIN and the other under GND.
-    That is the switching loop, about 2 mm long. C5 and C4 stack below it.
-  - SW leaves under U1's body: left to the bootstrap capacitor C6, right
-    to L1.
+  - It follows the datasheet's layout example (figure 7-18).
+  - C3 lies just below, with one pad under VIN and the other under GND.
+    That is the switching loop, about 2.5 mm long. C5 and C4 stack below
+    it.
+  - SW drops through a via in the gap between its pin and C3, then runs
+    on the bottom layer to L1 and to the bootstrap capacitor C6. Don't
+    route SW on the top layer under U1: the datasheet rules that out
+    (7.4.1, rule 5).
   - The feedback divider (R2, R3) and the EN pull-up (R1) sit directly
     above their pins.
   - The output capacitors (C7, C8) and R4 sit at L1's output pad.
@@ -525,8 +534,8 @@ copper pours, traces and vias.
    Source) and do the checks under "PCB placement".
 2. Route the power path by hand first:
    - J1 → F1 → D1 → the VM bus;
-   - the buck: C3 to U1's VIN and GND pins first, then SW under U1's
-     body to C6 and L1 (see "PCB placement");
+   - the buck: C3 to U1's VIN and GND pins first, then SW through a via
+     and along the bottom layer to L1 and C6 (see "PCB placement");
    - the coil outputs to J101/J201;
    - VM to each driver.
 3. Add a GND pour on the bottom layer, with vias under each DRV8313's

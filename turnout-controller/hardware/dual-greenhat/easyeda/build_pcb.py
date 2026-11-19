@@ -57,17 +57,20 @@ PLACE = {
     "C1": (57.6, 22.2, 0), "C2": (64.8, 22.2, 0),
     # Buck converter, U1 rotated 90: pins 1-3 (GND, SW, VIN) face down,
     # pins 4-6 (FB, EN, BST) face up. Each part sits at the pin it serves:
-    #   C3   straddles VIN and GND right below the pins (the switching
+    # This follows the TPS563201 datasheet's layout example (figure 7-18):
+    #   C3   straddles VIN and GND just below the pins (the switching
     #        loop), with C5 and C4 stacked below it on the same two columns
-    #   SW   leaves under U1's body: left to C6 (bootstrap), right to L1
+    #   SW   drops through a via in the gap between its pin and C3, and
+    #        runs on the bottom layer to L1 and to C6 (bootstrap). Don't
+    #        route it on the top layer under U1 (datasheet 7.4.1, rule 5)
     #   R2/R3 (feedback) and R1 (EN) directly above their pins
     #   C7/C8 at L1's output pad; R4 next to them; R5 feeds VM_BUCK from VM
     "U1": (59.5, 29.5, 90), "L1": (65.4, 29.5, 0),
-    "C3": (59.5, 32.6, 180), "C5": (59.5, 34.4, 180), "C4": (59.5, 36.2, 180),
+    "C3": (59.5, 33.3, 180), "C5": (59.5, 35.1, 180), "C4": (59.5, 36.9, 180),
     "C6": (56.9, 29.0, 90),
     "R1": (59.1, 26.2, 90), "R2": (60.45, 26.2, 90), "R3": (61.9, 25.7, 270),
     "C7": (66.0, 32.8, 180), "C8": (66.0, 34.9, 180), "R4": (66.0, 37.2, 180),
-    "R5": (62.75, 34.6, 270),
+    "R5": (62.75, 35.3, 270),
 }
 
 
