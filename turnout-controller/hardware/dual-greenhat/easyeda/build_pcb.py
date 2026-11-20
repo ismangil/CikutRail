@@ -12,6 +12,8 @@ left to EasyEDA (by hand or its autorouter).
 Outputs (next to this script):
     DualGreenHat_pcb.json   EasyEDA Standard PCB source
     placement.svg           top-view sketch of the placement, for review
+    print_1to1.svg          A4 sheet with the pads at true size, for
+                            checking the module and connectors on paper
 """
 
 import json
@@ -87,6 +89,11 @@ PLACE = {
     "R9": (59.6, 49.6, 0), "R10": (59.6, 50.9, 0),
     "R11": (61.9, 49.6, 0), "R12": (61.9, 50.9, 0), "C11": (59.6, 52.2, 0),
 }
+
+
+# A "G" on the silkscreen beside pin 1 (GND) of each sensor header, which
+# isn't keyed: -1 puts it to the left of the header, 1 to the right.
+GND_MARK = {"J4": -1, "J5": 1, "J6": 1, "J7": -1, "J8": -1}
 
 
 def driver_block(u, x, c):
@@ -316,6 +323,12 @@ def build(fetch):
     for hx, hy in HOLES:
         shapes.append(f"HOLE~{n(ORIGIN[0] + hx * MM)}~{n(ORIGIN[1] + hy * MM)}~"
                       f"{n(HOLE_D / 2 * MM)}~{gid()}~0")
+    marks = []
+    for ref, side in GND_MARK.items():
+        px, py = next((x, y) for x, y, net in pad_nets[ref] if net == "GND")
+        tx, ty = px + (1.7 if side > 0 else -2.6) * MM, py + 0.5 * MM
+        shapes.append(f"TEXT~L~{n(tx)}~{n(ty)}~0.6~0~0~3~~4~G~~~{gid()}~~0~")
+        marks.append((tx, ty))
     shapes.append(f"TEXT~L~{n(ORIGIN[0] + 2 * MM)}~{n(ORIGIN[1] + (BOARD_H - 1.5) * MM)}~0.6~0~0~3~~4~"
                   f"CikutRail dual GreenHat  TAPR OHL  based on IoTT GreenHat~~~{gid()}~~0~")
 
@@ -357,7 +370,7 @@ def build(fetch):
         "netColors": {},
     }
     (HERE / "DualGreenHat_pcb.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    return boxes, pad_nets
+    return boxes, pad_nets, shapes, marks
 
 
 def check(boxes):
@@ -421,9 +434,88 @@ def preview(boxes, pad_nets):
     (HERE / "placement.svg").write_text(svg, encoding="utf-8")
 
 
+def module_outline(pad_nets):
+    """Stamp-S3Bat over the sockets, in mm from the board's top-left: the
+    module's PCB (28.0 x 18 mm, starting 1.3 mm outside pin 9) and its
+    USB-C shell (9 mm wide, 1.85 mm beyond the PCB)."""
+    mx0 = (min(p[0] for p in pad_nets["J2"]) - ORIGIN[0]) / MM - 1.3
+    my0 = (pad_nets["J2"][0][1] - ORIGIN[1]) / MM - 1.38
+    return (mx0, my0, 28.0, 18.0), (mx0 - 1.85, my0 + 4.5, 1.85, 9.0)
+
+
+def print_sheet(boxes, pad_nets, shapes, marks):
+    """A4 page in millimetres with the board at true size: pads, holes,
+    silkscreen outlines and designators. Print at 100 % ("actual size")
+    and check the 50 mm rulers before trusting it."""
+    ox, oy = 30.0, 40.0                      # board's top-left on the page
+    el = []
+    for s in shapes:
+        for sub in s.split("#@$"):
+            f = sub.split("~")
+            if f[0] == "PAD":
+                cx, cy, w, h = map(float, f[2:6])
+                pts = [float(t) for t in f[10].split()] if f[10].strip() else []
+                if f[1] == "OVAL" and len(pts) == 4:
+                    el.append(f'<line x1="{pts[0]}" y1="{pts[1]}" x2="{pts[2]}" y2="{pts[3]}" '
+                              f'stroke="#000" stroke-width="{min(w, h)}" stroke-linecap="round"/>')
+                elif len(pts) >= 6:
+                    el.append(f'<polygon points="{" ".join(map(n, pts))}" fill="#000"/>')
+                else:
+                    el.append(f'<circle cx="{cx}" cy="{cy}" r="{w / 2}" fill="#000"/>')
+                if float(f[9] or 0):
+                    el.append(f'<circle cx="{cx}" cy="{cy}" r="{f[9]}" fill="#fff"/>')
+            elif f[0] == "TRACK" and f[2] == "3":
+                el.append(f'<polyline points="{f[4]}" fill="none" stroke="#888" stroke-width="0.4"/>')
+            elif f[0] == "HOLE":
+                r = float(f[3])
+                el.append(f'<circle cx="{f[1]}" cy="{f[2]}" r="{r}" fill="none" stroke="#000" '
+                          f'stroke-width="0.4"/>'
+                          f'<path d="M{float(f[1]) - r} {f[2]}h{2 * r}M{f[1]} {float(f[2]) - r}v{2 * r}" '
+                          f'stroke="#000" stroke-width="0.3"/>')
+    for tx, ty in marks:
+        el.append(f'<text x="{tx}" y="{ty}" font-size="5" fill="#c00">G</text>')
+    for r, (a0, a1, a2, a3) in boxes.items():
+        if r[0] in "RC":
+            continue  # label the parts worth finding on paper, not the passives
+        el.append(f'<text x="{(a0 + a2) / 2}" y="{a1 - 0.6}" font-size="6" fill="#06c" '
+                  f'text-anchor="middle">{r}</text>')
+    x1, y1 = ORIGIN[0] + BOARD_W * MM, ORIGIN[1] + BOARD_H * MM
+    el.append(f'<rect x="{ORIGIN[0]}" y="{ORIGIN[1]}" width="{BOARD_W * MM}" height="{BOARD_H * MM}" '
+              f'fill="none" stroke="#000" stroke-width="0.4"/>')
+    board = (f'<g transform="translate({ox} {oy}) scale({1 / MM}) translate({-ORIGIN[0]} {-ORIGIN[1]})">'
+             + "".join(el) + "</g>")
+    mod = "".join(f'<rect x="{ox + x:.2f}" y="{oy + y:.2f}" width="{w}" height="{h}" fill="none" '
+                  f'stroke="#06c" stroke-width="0.15" stroke-dasharray="1 0.6"/>'
+                  for x, y, w, h in module_outline(pad_nets))
+
+    def ruler(x, y, dx, dy):
+        tick = "".join(f'<path d="M{x + dx * i} {y + dy * i}{"v" if dx else "h"}{-2 if i % 5 == 0 else -1}" '
+                       f'stroke="#000" stroke-width="0.15"/>' for i in range(51))
+        return (f'<path d="M{x} {y}L{x + 50 * dx} {y + 50 * dy}" stroke="#000" stroke-width="0.15"/>' + tick)
+
+    notes = [
+        "CikutRail dual-GreenHat carrier, top view, 1:1",
+        "Print at 100 % (actual size, no fit-to-page). Each ruler must measure 50 mm.",
+        "Black: pads (white centre: drilled). Grey: silkscreen outline. Blue dashes: Stamp-S3Bat and its USB-C.",
+        "Red G: GND pin of each sensor header (J4-J8). Check a Qwiic cable against J9.",
+    ]
+    text = "".join(f'<text x="30" y="{14 + 5 * i}" font-size="{4 if i == 0 else 3}">{t}</text>'
+                   for i, t in enumerate(notes))
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297" '
+           'font-family="sans-serif"><rect width="210" height="297" fill="#fff"/>'
+           + text + board + mod
+           + ruler(ox, oy + BOARD_H + 14, 1, 0)
+           + f'<text x="{ox + 52}" y="{oy + BOARD_H + 15}" font-size="3">50 mm</text>'
+           + ruler(ox + BOARD_W + 14, oy, 0, 1)
+           + f'<text x="{ox + BOARD_W + 11}" y="{oy + 55}" font-size="3">50 mm</text>'
+           + "</svg>")
+    (HERE / "print_1to1.svg").write_text(svg, encoding="utf-8")
+
+
 if __name__ == "__main__":
-    boxes, pads = build("--fetch" in sys.argv)
+    boxes, pads, shapes, marks = build("--fetch" in sys.argv)
     preview(boxes, pads)
+    print_sheet(boxes, pads, shapes, marks)
     problems = check(boxes)
     print(f"{len(boxes)} footprints on {BOARD_W:g} x {BOARD_H:g} mm")
     for p in problems:

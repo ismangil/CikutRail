@@ -431,8 +431,9 @@ The five GPIOs the turnouts don't use, G7–G11, come out on connectors.
   and 4.7 kΩ resistors limit it to about 3 mA and under 1 mA.
 
 **To check before ordering:** plug a Qwiic cable into J9's footprint on a
-1:1 print, to confirm the connector isn't mirrored, and mark GND on the
-silkscreen at each header.
+1:1 print (`easyeda/print_1to1.svg`), to confirm the connector isn't
+mirrored. Each sensor header has a **G** on the silkscreen beside its GND
+pin; check in EasyEDA that the five marks are drawn and readable.
 
 ## JLCPCB assembly check (2026-11-20)
 
@@ -577,6 +578,9 @@ places them from the `PLACE` table. It writes:
   net. Power and coil nets get a 0.8 mm track rule ("Power"); the rest use
   0.254 mm.
 - `placement.svg`: a top-view sketch for review.
+- `print_1to1.svg`: an A4 sheet with the pads, holes and outlines at true
+  size, for setting the module and the cables on paper. Print it at 100 %
+  and measure the two 50 mm rulers first.
 
 The script also checks that no two footprints overlap and that nothing
 leaves the board or crowds a mounting hole.
