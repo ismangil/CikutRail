@@ -332,8 +332,11 @@ def build(fetch):
     shapes.append(f"TEXT~L~{n(ORIGIN[0] + 2 * MM)}~{n(ORIGIN[1] + (BOARD_H - 1.5) * MM)}~0.6~0~0~3~~4~"
                   f"CikutRail dual GreenHat  TAPR OHL  based on IoTT GreenHat~~~{gid()}~~0~")
 
+    # Via rules are 0.6 / 0.3 mm on every net: the DRV8313 footprint's own
+    # thermal vias are that size, and a larger rule makes EasyEDA's DRC flag
+    # all 32 of them.
     power = {"trackWidth": n(0.8 * MM), "clearance": n(0.2 * MM),
-             "viaHoleDiameter": n(0.8 * MM), "viaHoleD": n(0.4 * MM), "nets": POWER_NETS}
+             "viaHoleDiameter": n(0.6 * MM), "viaHoleD": n(0.3 * MM), "nets": POWER_NETS}
     doc = {
         "head": {"docType": "3", "editorVersion": "6.5.34", "newgId": True, "c_para": {},
                  "hasIdFlag": True, "x": n(ORIGIN[0]), "y": n(ORIGIN[1]),
@@ -355,16 +358,16 @@ def build(fetch):
         "BBox": {"x": ORIGIN[0] - 10, "y": ORIGIN[1] - 10,
                  "width": BOARD_W * MM + 20, "height": BOARD_H * MM + 20},
         "DRCRULE": {"Default": {"trackWidth": n(0.254 * MM), "clearance": n(0.152 * MM),
-                                "viaHoleDiameter": n(0.61 * MM), "viaHoleD": n(0.305 * MM)},
+                                "viaHoleDiameter": n(0.6 * MM), "viaHoleD": n(0.3 * MM)},
                     "Power": power, "isRealtime": True, "isDrcOnRoutingOrPlaceVia": False,
                     "checkObjectToCopperarea": True, "showDRCRangeLine": True},
         "routerRule": {"unit": "mm", "trackWidth": 0.254, "trackClearance": 0.152,
-                       "viaHoleD": 0.305, "viaDiameter": 0.61, "routerLayers": [1, 2],
+                       "viaHoleD": 0.3, "viaDiameter": 0.6, "routerLayers": [1, 2],
                        "smdClearance": 0.152,
                        "specialNets": [{"net": nn, "width": n(0.8 * MM) + "px",
                                         "clearance": n(0.2 * MM) + "px",
-                                        "viaHoleD": n(0.4 * MM) + "px",
-                                        "viaHoleDiameter": n(0.8 * MM) + "px"}
+                                        "viaHoleD": n(0.3 * MM) + "px",
+                                        "viaHoleDiameter": n(0.6 * MM) + "px"}
                                        for nn in POWER_NETS]},
         "preference": {"hideFootprints": "", "hideNets": ""},
         "netColors": {},

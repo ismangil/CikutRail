@@ -569,6 +569,13 @@ python build_schematic.py
 
 ## PCB placement (EasyEDA)
 
+**Import checked (2026-11-20).** `DualGreenHat_pcb.json` opens in EasyEDA
+Standard: 93 footprints, 69 nets, three holes, the designators and the
+five "G" marks all appear. Its DRC lists 269 errors, all of them
+"Incomplete Connection", which is the unrouted board; there are no
+clearance errors. Vias are 0.6 / 0.3 mm on every net, the size of the
+thermal vias in the DRV8313 footprint.
+
 [easyeda/build_pcb.py](easyeda/build_pcb.py) takes the parts and nets from
 `build_schematic.py` and the LCSC footprints (cached in `easyeda/fp/`), and
 places them from the `PLACE` table. It writes:
