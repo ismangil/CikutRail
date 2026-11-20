@@ -10,6 +10,7 @@ which this script adds back to the board along with the GND pours.
     python build_pcb.py            # uses the fp/ cache only
     python build_pcb.py --fetch    # downloads missing footprints first
     python build_pcb.py --no-routes    # placement only, for a fresh autoroute
+    python build_pcb.py --take FILE    # keep the routing exported from EasyEDA
 
 Outputs (next to this script):
     DualGreenHat_pcb.json   EasyEDA Standard PCB source
@@ -155,6 +156,102 @@ CLEARANCE = 0.152                      # mm, what the autorouter is asked to kee
 DRC_CLEARANCE = 0.127                  # mm (5 mil), what DRC checks: the router lands up to 0.02 mm
                                        # under its target. JLCPCB's minimum spacing is 0.1 mm.
 ROUTES = HERE / "routes.json"          # tracks and vias kept from EasyEDA, see load_routes
+
+# Routes drawn here and not by the autorouter, in mm from the board's
+# top-left. EasyEDA's cloud router rips up tracks it finds on a net it is
+# routing, so they go in twice:
+#   --no-routes   as solid copper regions on their net, which the router
+#                 leaves alone and routes the other nets around;
+#   --take FILE   as real tracks and vias, added to what the router made.
+# The router still routes these nets itself. Its VM tracks are kept, in
+# parallel with the bus; its tracks on the nets in PRE_ONLY are dropped.
+#   track: (net, layer, width, [(x, y), ...])   layer 1 top, 2 bottom
+#   via:   (net, x, y)
+PRE_ONLY = {"BUCK_SW"}
+PRE_TRACKS = [
+    # VM: D1's cathode down to C2, two vias, then 1.5 mm on the bottom layer
+    # to a bus that runs under the drivers' VM bypass capacitors.
+    ("VM", 1, 1.5, [(63.2, 17.8), (63.2, 22.2)]),
+    ("VM", 2, 1.5, [(63.7, 20.0), (52.0, 20.0), (52.0, 8.6), (5.4, 8.6)]),
+    ("VM", 1, 0.6, [(56.01, 22.2), (56.01, 20.0)]),            # C1 to the feed
+    # Buck SW: pin 2 to a via in the gap above C3, along the bottom layer,
+    # and up again beside L1 (TPS563201 datasheet 7.4.1, rule 5).
+    ("BUCK_SW", 1, 0.6, [(59.5, 30.85), (59.5, 32.0)]),
+    ("BUCK_SW", 2, 0.6, [(59.5, 32.0), (61.0, 30.5), (61.95, 30.5)]),
+    ("BUCK_SW", 1, 0.6, [(61.95, 30.5), (63.8, 30.5)]),
+    # and on along the bottom layer to the bootstrap capacitor C6
+    ("BUCK_SW", 2, 0.6, [(59.5, 32.0), (57.4, 32.0), (56.0, 30.6), (56.0, 29.42)]),
+    ("BUCK_SW", 1, 0.6, [(56.0, 29.42), (56.9, 29.42)]),
+]
+PRE_VIAS = [
+    ("VM", 62.7, 20.0), ("VM", 63.7, 20.0), ("VM", 56.01, 20.0),
+    ("BUCK_SW", 59.5, 32.0), ("BUCK_SW", 61.95, 30.5), ("BUCK_SW", 56.0, 29.42),
+]
+# Each DRV8313: pins 1-4 (CP1, CP2, VCP, VM) and their two capacitors. The
+# router tends to wrap VCP round the VM pad and shut pin 4 in, so these four
+# short connections are drawn: VCP down the gap between the capacitors, VM
+# straight from its capacitor to pin 4. The pin-11 capacitor's VM pad gets a
+# via to the bus just above it. x is the driver's centre (see driver_block).
+for _u, _x in (("U203", 8.0), ("U202", 20.0), ("U103", 32.0), ("U102", 44.0)):
+    PRE_ONLY |= {f"{_u}_CP1", f"{_u}_CP2", f"{_u}_VCP"}
+    PRE_TRACKS += [
+        (f"{_u}_CP1", 1, 0.254, [(_x + 4.3, 9.48), (_x + 4.82, 9.48), (_x + 4.89, 9.55),
+                                 (_x + 4.89, 11.47), (_x + 4.23, 12.13)]),
+        (f"{_u}_CP2", 1, 0.254, [(_x + 3.58, 12.13), (_x + 3.58, 11.3), (_x + 4.05, 10.82),
+                                 (_x + 4.3, 10.82), (_x + 4.3, 10.32)]),
+        (f"{_u}_VCP", 1, 0.254, [(_x + 2.9, 9.48), (_x + 3.6, 9.48), (_x + 3.6, 10.6),
+                                 (_x + 2.93, 11.27), (_x + 2.93, 11.6)]),
+        ("VM", 1, 0.4, [(_x + 2.9, 10.32), (_x + 2.28, 10.94), (_x + 2.28, 11.6)]),
+        ("VM", 1, 0.4, [(_x - 2.6, 9.48), (_x - 2.6, 8.85)]),
+    ]
+    PRE_VIAS += [("VM", _x - 2.6, 8.85)]
+
+
+def pre_shapes(gid, reserve):
+    """The PRE_ routes as EasyEDA shapes: real tracks and vias, or (reserve)
+    solid regions covering the same copper on the same nets."""
+    U = lambda x, y: (ORIGIN[0] + x * MM, ORIGIN[1] + y * MM)
+    out = []
+    for net, layer, w, pts in PRE_TRACKS:
+        if not reserve:
+            xy = " ".join(f"{n(a)} {n(b)}" for a, b in (U(*p) for p in pts))
+            out.append(f"TRACK~{n(w * MM)}~{layer}~{net}~{xy}~{gid()}~0")
+            continue
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):   # one rectangle per segment, ends extended by w/2
+            d = math.hypot(x1 - x0, y1 - y0)
+            ux, uy = (x1 - x0) / d * w / 2, (y1 - y0) / d * w / 2
+            c = [(x0 - ux + uy, y0 - uy - ux), (x1 + ux + uy, y1 + uy - ux),
+                 (x1 + ux - uy, y1 + uy + ux), (x0 - ux - uy, y0 - uy + ux)]
+            path = "M " + " L ".join(f"{n(a)} {n(b)}" for a, b in (U(*p) for p in c)) + " Z"
+            out.append(f"SOLIDREGION~{layer}~{net}~{path}~solid~{gid()}~~~~0")
+    for net, x, y in PRE_VIAS:
+        if not reserve:
+            cx, cy = U(x, y)
+            out.append(f"VIA~{n(cx)}~{n(cy)}~{n(0.6 * MM)}~{net}~{n(0.15 * MM)}~{gid()}~0")
+            continue
+        c = [(x - 0.3, y - 0.3), (x + 0.3, y - 0.3), (x + 0.3, y + 0.3), (x - 0.3, y + 0.3)]
+        path = "M " + " L ".join(f"{n(a)} {n(b)}" for a, b in (U(*p) for p in c)) + " Z"
+        out += [f"SOLIDREGION~{layer}~{net}~{path}~solid~{gid()}~~~~0" for layer in (1, 2)]
+    return out
+
+
+def take(path):
+    """Write routes.json from the tracks and vias exported from EasyEDA
+    after an autoroute of the --no-routes board."""
+    got = json.loads(Path(path).read_text(encoding="utf-8"))
+    got = [s for s in got if s.split("~")[0] in ("TRACK", "VIA")
+           and s.split("~")[3 if s.startswith("TRACK") else 4] not in PRE_ONLY]
+    counter = [0]
+
+    def gid():
+        counter[0] += 1
+        return f"ggepre{counter[0]}"
+    doc = {"placement": placement_key(),
+           "source": "EasyEDA Standard cloud autorouter, plus the PRE_ routes in build_pcb.py",
+           "shapes": sorted(got) + pre_shapes(gid, False)}
+    ROUTES.write_text(json.dumps(doc, indent=1) + chr(10), encoding="utf-8", newline=chr(10))
+    print(f"routes.json: {len(got)} from the router, {len(doc['shapes']) - len(got)} drawn here")
+
 
 # --------------------------------------------------------------------------
 # Footprints
@@ -362,6 +459,8 @@ def build(fetch, routes=True):
                       f"{n(HOLE_D / 2 * MM)}~{gid()}~0")
     kept = load_routes() if routes else []
     shapes += [re.sub(r"gge[0-9A-Za-z]+", lambda m: gid(), s) for s in kept]
+    if not routes:   # for the autorouter: reserve the copper of the routes drawn here
+        shapes += pre_shapes(gid, True)
     if kept:
         # GND pour on both layers, 0.3 mm inside the outline, and cut back
         # 0.5 mm from the Stamp-S3Bat's outline: no pour under the module,
@@ -580,6 +679,8 @@ def print_sheet(boxes, pad_nets, shapes, marks):
 
 
 if __name__ == "__main__":
+    if "--take" in sys.argv:
+        take(sys.argv[sys.argv.index("--take") + 1])
     boxes, pads, shapes, marks = build("--fetch" in sys.argv, "--no-routes" not in sys.argv)
     preview(boxes, pads)
     print_sheet(boxes, pads, shapes, marks)

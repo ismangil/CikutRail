@@ -1,6 +1,6 @@
 # Dual-GreenHat carrier board: design note
 
-Status: **routed, first pass, not yet reviewed**. The schematic and the
+Status: **routed, not yet reviewed**. The schematic and the
 PCB (70 × 56 mm, autorouted, DRC clean) are generated in
 [easyeda/](easyeda/).
 
@@ -610,7 +610,9 @@ places them from the `PLACE` table. It writes:
 - `routes.json`: the tracks and vias, as EasyEDA shape strings, with a key
   of the placement they were routed on. `build_pcb.py` adds them to the
   board; if a part has moved since, it drops them and warns.
-  `--no-routes` writes the placement alone, for a fresh autoroute.
+  `--no-routes` writes the placement for a fresh autoroute, and
+  `--take FILE` builds `routes.json` from what EasyEDA exports afterwards
+  (see "Routing").
 - `placement.svg`: a top-view sketch for review.
 - `print_1to1.svg`: an A4 sheet with the pads, holes and outlines at true
   size, for setting the module and the cables on paper. Print it at 100 %
@@ -676,24 +678,40 @@ copper pours, traces and vias.
   short of C107 and C207; the USB-C shell reaches the carrier's left
   edge. It sits above J2/J3, so nothing tall may go under it.
 
-## Routing (first pass, 2026-11-20)
+## Routing (second pass, 2026-11-20)
 
-The board is routed, by EasyEDA's cloud autorouter with the net-class
-widths above: 370 of 370 connections, 598 tracks (2.4 m), 62 vias.
+The board is routed in two parts:
+
+- **Drawn in `build_pcb.py`** (`PRE_TRACKS`, `PRE_VIAS`), 38 tracks and
+  vias:
+  - **VM:** 1.5 mm from D1's cathode to C2, two vias, then 1.5 mm on the
+    bottom layer (70 mm) to a bus under the drivers' bypass capacitors.
+    Each driver's pin-11 capacitor has a via straight onto the bus.
+  - **Buck SW:** pin 2 to a via in the gap above C3, along the bottom
+    layer, and up beside L1 and at C6, as TI's layout rule 5 asks. Nothing
+    of SW runs on the top layer under U1.
+  - **Each DRV8313's pins 1-4** (CP1, CP2, VCP, VM) to their two
+    capacitors. Left to the router, VCP wraps round the VM pad and shuts
+    pin 4 in.
+- **By EasyEDA's cloud autorouter**, everything else: 659 tracks and
+  vias. For the router run the drawn routes go in as solid copper regions
+  on their nets (`--no-routes`), because the router rips up tracks on any
+  net it routes; `--take` then swaps the regions for the real tracks.
+
 Re-imported with the GND pours, EasyEDA's DRC reports **0 errors** and
-69 of 69 nets complete. The DRC clearance is 0.127 mm (5 mil); the router
-was asked for 0.152 mm and lands up to 0.02 mm under it.
+69 of 69 nets complete (631 tracks, 2.4 m; 66 vias). The DRC clearance
+is 0.127 mm (5 mil); the router was asked for 0.152 mm and lands up to
+0.02 mm under it.
 
-This is machine routing that passes the rule check. It has **not** been
-reviewed as a layout, and these points want a look before ordering:
+It passes the rule check but has **not** been reviewed as a layout.
+Points for that review:
 
-- **VM** is one 0.4 mm tree, 251 mm long with 8 vias, feeding all four
-  drivers. The coil pulses are short and each driver pair has a 22 µF
-  bulk capacitor, but a wide VM bus or pour would be better.
-- **Buck converter.** SW is routed on the top layer (11.5 mm, 0.6 mm
-  wide), not through a via onto the bottom as planned under "PCB
-  placement". The parts are placed as TI's example, so the loops are
-  short, but the routing doesn't follow TI's rule 5.
+- **VM beyond the bus.** The bus reaches each driver's pin 11 through one
+  0.3 mm via. Pin 4, the second bypass capacitor and the bulk capacitors
+  C118/C218 are on the router's 0.4 mm tracks (246 mm in all, 10 vias),
+  in parallel with the bus.
+- **Buck SW** goes through three single vias. Fine for the current here,
+  but worth a second via at L1 if there is room.
 - **GND pour** is on both layers and is cut back from under the
   Stamp-S3Bat, for its antenna. GND is also fully routed as tracks, so
   nothing depends on the pour. There are no extra stitching vias.

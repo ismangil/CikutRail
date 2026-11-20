@@ -97,9 +97,11 @@ new files ("after" versions) are:
     3.3 V and the coil outputs (was 0.8 mm for all of these, too wide to
     reach the DRV8313 pins). Clearance 0.127 mm.
   PCB routing
-  - First routing, by EasyEDA's autorouter (easyeda/routes.json): 598
-    tracks, 62 vias, all 69 nets. GND pour on both layers, cut back from
-    under the Stamp-S3Bat. EasyEDA's DRC reports no errors. Not yet
-    reviewed as a layout.
+  - Routing (easyeda/routes.json): 631 tracks, 66 vias, all 69 nets.
+    Drawn in build_pcb.py: a 1.5 mm VM feed and bus on the bottom layer,
+    the buck converter's SW net through vias onto the bottom layer, and
+    pins 1-4 of each DRV8313. The rest is by EasyEDA's autorouter. GND
+    pour on both layers, cut back from under the Stamp-S3Bat. EasyEDA's
+    DRC reports no errors. Not yet reviewed as a layout.
   Documentation
   - New 1:1 print sheet of the placement (easyeda/print_1to1.svg).
