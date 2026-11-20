@@ -51,6 +51,11 @@ CAT = {
     "TERM6": ("C474924", "KF128-2.54-6P"),
     "PWRTERM": ("C474940", "KF128L-5.08-2P"),
     "SOCKET9": ("C22438159", "1x9 female 2.54"),
+    "R1K": ("C11702", "1k"),            # 0402, Basic
+    "R4K7": ("C25900", "4.7k"),         # 0402, Basic
+    "LDO33": ("C6186", "AMS1117-3.3"),  # SOT-223, Basic
+    "JSH3": ("C160403", "SM03B-SRSS-TB"),  # JST SH 3-pin, side entry
+    "JSH4": ("C160404", "SM04B-SRSS-TB"),  # JST SH 4-pin, side entry (Qwiic)
 }
 
 # --------------------------------------------------------------------------
@@ -91,8 +96,33 @@ def power_sheet():
     part(s, "R4", "R0", {1: "5V_BUCK", 2: "5VIN"})        # remove to run from USB-C only
     # Stamp-S3Bat DIP sockets; pin 1 is the end away from USB-C
     part(s, "J2", "SOCKET9", {1: "CH1", 2: "CH2", 3: "CH3", 4: "CH4", 5: "CH5",
-                              6: "GND", 7: "VCC5V", 8: "CH6"})  # 9 = G7, unused
-    part(s, "J3", "SOCKET9", {1: "5VIN", 9: "GND"})  # 2 3V3, 3 VBAT, 4-7 G8-G11, 8 WAKE: unused
+                              6: "GND", 7: "VCC5V", 8: "CH6", 9: "G7"})
+    part(s, "J3", "SOCKET9", {1: "5VIN", 4: "G8", 5: "G9", 6: "G10", 7: "G11",
+                              9: "GND"})  # 2 3V3, 3 VBAT, 8 WAKE: unused
+
+
+def sensor_sheet():
+    """The five spare GPIOs (G7-G11) as digital sensor inputs, with G10/G11
+    also on a Qwiic / STEMMA QT connector for I2C. The firmware decides per
+    pin: sensor mode needs no change, I2C on G10/G11 does."""
+    s = "Sensors and I2C"
+    # 3.3 V for the sensors from the buck's 5 V, so they don't load the
+    # S3Bat's 3V3 pin. Only present when the board has 12 V.
+    part(s, "U2", "LDO33", {1: "GND", 2: "3V3_S", 3: "5V_BUCK", 4: "3V3_S"})
+    part(s, "C9", "C10U", {1: "5V_BUCK", 2: "GND"})
+    part(s, "C10", "C22U1206", {1: "3V3_S", 2: "GND"})
+    part(s, "C11", "C100N", {1: "3V3_S", 2: "GND"})
+    # One 3-pin JST SH per GPIO, in the Pololu sensor's order: 1 GND,
+    # 2 supply, 3 output. A 1k series resistor protects each pin
+    # (WIRING.md, "Sensor inputs"). Pins 4-5 are the mounting tabs.
+    for i, g in enumerate(range(7, 12)):
+        part(s, f"R{6+i}", "R1K", {1: f"G{g}", 2: f"S{g}"})
+        part(s, f"J{4+i}", "JSH3", {1: "GND", 2: "3V3_S", 3: f"S{g}", 4: "GND", 5: "GND"})
+    # I2C on the same two pins: G10 = SDA, G11 = SCL, straight to the
+    # connector, with pull-ups. Use J7/J8 or J9 on these pins, not both.
+    part(s, "J9", "JSH4", {1: "GND", 2: "3V3_S", 3: "G10", 4: "G11", 5: "GND", 6: "GND"})
+    part(s, "R11", "R4K7", {1: "3V3_S", 2: "G10"})
+    part(s, "R12", "R4K7", {1: "3V3_S", 2: "G11"})
 
 
 def block_sheet(b, chans):
@@ -155,7 +185,8 @@ def block_sheet(b, chans):
 power_sheet()
 block_sheet(1, [1, 2, 3])
 block_sheet(2, [4, 5, 6])
-SHEETS = ["Power and S3Bat", "Channels 1-3", "Channels 4-6"]
+sensor_sheet()
+SHEETS = ["Power and S3Bat", "Channels 1-3", "Channels 4-6", "Sensors and I2C"]
 
 # --------------------------------------------------------------------------
 # Library access

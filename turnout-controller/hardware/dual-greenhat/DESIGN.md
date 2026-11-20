@@ -10,8 +10,10 @@ loose 5VOUT/GND wiring described in [WIRING.md](../../docs/WIRING.md),
 and the node's separate 5 V supply: one 12 V screw terminal powers both
 the coils and the S3Bat.
 
-The firmware doesn't change. The board uses channels 1–6 (G1–G6); channels
-7–11 stay available for layouts built from separate GreenHats.
+The turnout firmware doesn't change. The board uses channels 1–6 (G1–G6)
+for the turnouts. Channels 7–11 (G7–G11) come out on connectors as digital
+sensor inputs, and G10/G11 also as an I2C port (see "Sensor inputs and
+I2C"). They are no longer free for extra GreenHats on this board.
 
 ## Decisions so far
 
@@ -26,6 +28,9 @@ The firmware doesn't change. The board uses channels 1–6 (G1–G6); channels
 | Reverse polarity | One **SS34** Schottky in series (LCSC C8678, JLC Basic), replacing the GreenHat's Q1/D7/R7 |
 | Node power | 12 V → 5 V buck feeding the S3Bat's **5VIN** pin: **TI TPS563201DDCR** (LCSC C116592) |
 | Turnout outputs | **Two 6-way 2.54 mm screw terminals**, KF128-2.54-6P (LCSC C474924), one per block: 2 pins per turnout, 3 turnouts each |
+| Sensor inputs | **Five**, on G7–G11: one 3-pin JST SH connector each (SM03B-SRSS-TB, LCSC C160403), GND / 3.3 V / signal, 1 kΩ in series |
+| I2C | G10 (SDA) and G11 (SCL) also on a **Qwiic / STEMMA QT** connector (SM04B-SRSS-TB, LCSC C160404) with 4.7 kΩ pull-ups. The firmware picks sensor or I2C for these two pins |
+| Sensor supply | 3.3 V from an **AMS1117-3.3** (LCSC C6186, JLC Basic) fed by the buck's 5 V |
 | Assembly | Fully assembled by JLCPCB, parts from LCSC |
 | CAD | EasyEDA |
 
@@ -88,16 +93,16 @@ the left. Pin 1 is the far end of each row, pin 9 the USB-C end.)
 | 1 | G1 | ch1 | 5VIN | **5 V from the carrier's buck**, see "Node power" |
 | 2 | G2 | ch2 | 3V3 (3V3_L2) | optional: input pull-ups (see below) |
 | 3 | G3 | ch3 | VBAT | not connected |
-| 4 | G4 | ch4 | G8 | not connected |
-| 5 | G5 | ch5 | G9 | not connected |
-| 6 | GND | logic GND | G10 | not connected |
-| 7 | **5VOUT** | VCC5.0 (GreenHat logic) | G11 | not connected |
+| 4 | G4 | ch4 | G8 | sensor input (J5) |
+| 5 | G5 | ch5 | G9 | sensor input (J6) |
+| 6 | GND | logic GND | G10 | sensor input (J7) or I2C SDA (J9) |
+| 7 | **5VOUT** | VCC5.0 (GreenHat logic) | G11 | sensor input (J8) or I2C SCL (J9) |
 | 8 | G6 | ch6 | WAKE (PY_G4_WAKE) | not connected |
-| 9 | G7 | not connected (probe at the socket pin) | GND | logic GND |
+| 9 | G7 | sensor input (J4) | GND | logic GND |
 
-So the **left row alone** carries all six channels, 5VOUT and GND. The
-right row carries the 5VIN feed, GND and the optional 3V3 pull-up rail;
-its other pins just hold the module in place.
+So the **left row** carries all six channels, 5VOUT, GND and one sensor
+input (G7). The right row carries the 5VIN feed, GND and the other four
+sensor inputs (G8–G11); 3V3, VBAT and WAKE are not connected.
 
 **Power pins, from the schematic**
 
@@ -364,6 +369,64 @@ Label the pins on the silkscreen `6B 6A 5B 5A 4B 4A` (J201) and
 All six are on the S3Bat's **left** row, together with 5VOUT and GND
 (see "The Stamp-S3Bat DIP socket").
 
+## Sensor inputs and I2C
+
+The five GPIOs the turnouts don't use, G7–G11, come out on connectors.
+
+**Digital sensor inputs (J4–J8)**
+
+| Connector | GPIO | Channel | Board edge |
+|---|---|---|---|
+| J4 | G7 | 7 | left, above the USB-C end |
+| J5 | G8 | 8 | left |
+| J6 | G9 | 9 | right |
+| J7 | G10 | 10 | bottom |
+| J8 | G11 | 11 | bottom |
+
+- **Connector:** 3-pin JST SH, 1 mm pitch, side entry. Pin 1 GND, pin 2
+  3.3 V, pin 3 signal. That's the order on Pololu's digital distance
+  sensor (see SENSOR_BENCH.md), so its cable plugs straight in.
+- **Protection:** a 1 kΩ resistor (R6–R10) in series with each signal, as
+  WIRING.md asks for sensor inputs.
+- **Firmware:** nothing new. Set the channel to *sensor* on the config
+  page (phase 6). A contact to GND uses the internal pull-up and active
+  LOW.
+- **3.3 V only.** A sensor powered from the connector can't put more than
+  3.3 V on its output. Don't connect a 5 V output.
+
+**I2C (J9)**
+
+- **Connector:** 4-pin JST SH in the Qwiic / STEMMA QT order: pin 1 GND,
+  pin 2 3.3 V, pin 3 SDA (G10), pin 4 SCL (G11).
+- **Pull-ups:** 4.7 kΩ to 3.3 V on both lines (R11, R12).
+- **Either/or:** G10 and G11 reach both J9 (directly) and J7/J8 (through
+  1 kΩ). Use one or the other on a given board, and set the pins to match
+  in the firmware.
+- **As sensor inputs:** the pull-ups stay on the pins. They suit a contact
+  to GND or a push-pull output. A sensor that needs a pull-down won't work
+  on G10/G11.
+- **Firmware:** I2C on G10/G11 is not written yet. The firmware only uses
+  the S3Bat's internal bus to the PM1 (G47/G48), so this needs a second
+  bus and the two channels taken out of the turnout table.
+
+**3.3 V for the sensors (U2)**
+
+- An AMS1117-3.3 fed from the buck's 5 V makes a separate rail, `3V3_S`,
+  for the six connectors and the I2C pull-ups. The S3Bat's own 3V3 pin
+  isn't used: its current limit isn't known, and five Pololu sensors
+  would draw about 150 mA.
+- Capacitors: 10 µF in (C9), 22 µF out (C10), 100 nF at the connectors
+  (C11).
+- The rail is only live when the board has 12 V. On USB-C power alone the
+  sensors are off.
+- If the S3Bat is switched off while 12 V is present, a sensor output or
+  an I2C pull-up can feed a little current into an unpowered pin. The 1 kΩ
+  and 4.7 kΩ resistors limit it to about 3 mA and under 1 mA.
+
+**To check before ordering:** plug a Pololu cable and a Qwiic cable into
+the footprints' pin 1 on a 1:1 print, to confirm the connectors aren't
+mirrored.
+
 ## Board size (estimate)
 
 No layout yet, so this is an estimate.
@@ -446,9 +509,10 @@ circuit lives in one reviewable place:
   sheets. Tidy it by hand in EasyEDA if you like, but then treat the
   EasyEDA copy as the master and stop regenerating.
 - Sheets: **Power and S3Bat** (terminal, fuse, SS34, buck, sockets),
-  **Channels 1-3** and **Channels 4-6** (one GreenHat circuit each).
+  **Channels 1-3** and **Channels 4-6** (one GreenHat circuit each),
+  **Sensors and I2C** (the 3.3 V regulator and connectors J4–J9).
 - Designators: block 1 uses the 100s (U101 is the XOR, U102/U103 the
-  drivers), block 2 the 200s, and the power sheet 1–9. The turnout
+  drivers), block 2 the 200s, and the power and sensor sheets 1–12. The turnout
   terminals are J101 (channels 1–3) and J201 (channels 4–6).
 - Checked in EasyEDA Standard: loading a sheet built the same way,
   EasyEDA matched every part to its LCSC library entry (footprint and
@@ -487,6 +551,9 @@ leaves the board or crowds a mounting hole.
 | Right column | F1, D1, bulk caps, then the buck (U1, L1, R1–R5, C3–C8) |
 | Bottom left | the Stamp-S3Bat sockets J2 (G-row, on top) and J3, with USB-C at the left board edge |
 | Bottom middle | U101/U201 (74HCT86) and each channel's RC parts |
+| Left edge, above the module | J4 (G7) and J5 (G8), opening to the left |
+| Right edge, below the buck | U2 (3.3 V) with C9/C10, and J6 (G9), opening to the right |
+| Bottom edge, between the holes | J7 (G10), J8 (G11) and J9 (Qwiic), opening downwards, with R9–R12 and C11 beside them |
 
 - **Drivers rotated 180°:** pins 1–14 (charge pump, VM, coil outputs) face
   the terminals, and pins 15–28 (logic inputs) face the XORs and the

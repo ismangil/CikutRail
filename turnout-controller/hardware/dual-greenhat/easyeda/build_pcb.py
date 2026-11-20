@@ -71,6 +71,19 @@ PLACE = {
     "R1": (59.1, 26.2, 90), "R2": (60.6, 25.7, 90), "R3": (62.1, 26.1, 270),
     "C7": (66.5, 33.0, 180), "C8": (66.5, 35.5, 180), "R4": (66.5, 37.8, 180),
     "R5": (62.75, 35.3, 270),
+    # Sensors and I2C. The JST SH connectors are side entry: rotation 0
+    # opens towards the bottom edge, 270 the right edge, 90 the left edge.
+    #   3.3 V regulator below the buck, input cap next to VIN
+    "U2": (58.5, 44.5, 0), "C10": (55.8, 39.4, 0), "C9": (60.6, 39.4, 0),
+    #   left edge, above the module's USB-C end: G7 and G8
+    "J4": (3.5, 32.5, 90), "R6": (7.6, 32.5, 0),
+    "J5": (3.5, 25.6, 90), "R7": (7.6, 25.6, 0),
+    #   right edge: G9
+    "J6": (66.5, 44.5, 270), "R8": (66.5, 40.3, 0),
+    #   bottom edge, between the mounting holes: G10, G11, then Qwiic
+    "J7": (40.2, 52.5, 0), "J8": (47.15, 52.5, 0), "J9": (54.5, 52.5, 0),
+    "R9": (59.6, 49.6, 0), "R10": (59.6, 50.9, 0),
+    "R11": (61.9, 49.6, 0), "R12": (61.9, 50.9, 0), "C11": (59.6, 52.2, 0),
 }
 
 
@@ -114,7 +127,7 @@ xor_block(100, 28.5)
 xor_block(200, 40.0)
 
 # Nets that carry coil or supply current get wider tracks.
-POWER_NETS = ["V12_IN", "V12_F", "VM", "VM_BUCK", "GND", "BUCK_SW", "5V_BUCK", "5VIN"] + [
+POWER_NETS = ["V12_IN", "V12_F", "VM", "VM_BUCK", "GND", "BUCK_SW", "5V_BUCK", "5VIN", "3V3_S"] + [
     f"T{k}_{s}" for k in range(1, 7) for s in "AB"]
 
 # --------------------------------------------------------------------------
