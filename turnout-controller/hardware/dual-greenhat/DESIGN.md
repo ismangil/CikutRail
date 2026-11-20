@@ -574,7 +574,25 @@ Standard: 93 footprints, 69 nets, three holes, the designators and the
 five "G" marks all appear. Its DRC lists 269 errors, all of them
 "Incomplete Connection", which is the unrouted board; there are no
 clearance errors. Vias are 0.6 / 0.3 mm on every net, the size of the
-thermal vias in the DRV8313 footprint.
+thermal vias in the DRV8313 footprint. That is inside JLCPCB's limits
+for a 2-layer board (minimum 0.25 mm via / 0.15 mm hole) and above the
+sizes they charge extra for (holes of 0.15 mm or less, or 0.2-0.25 mm
+holes with a via under 0.45 mm); checked on their capabilities page on
+2026-11-20.
+
+**Autorouter test (2026-11-20).** EasyEDA's cloud autorouter, run on the
+placement as a feasibility check and not kept:
+
+| Power track rule | Connections routed | Nets complete | Clearance errors |
+|---|---|---|---|
+| 0.8 mm | stalled at about 86 %, stopped by hand | 55 of 69 | 143 |
+| 0.4 mm | 354 of 370 (95.7 %), finished in about 4 minutes | 61 of 69 | 7 |
+
+With 0.4 mm the nets left incomplete were VCC5V, CH4, VM, DL1, RD2 and
+three coil outputs (T1_B, T3_A, T4_B), 12 connections in all. The seven
+clearance errors were 0.18 mm against the power nets' 0.2 mm. So the
+placement routes on two layers; the power path and those last
+connections are for hand routing.
 
 [easyeda/build_pcb.py](easyeda/build_pcb.py) takes the parts and nets from
 `build_schematic.py` and the LCSC footprints (cached in `easyeda/fp/`), and
@@ -582,8 +600,10 @@ places them from the `PLACE` table. It writes:
 
 - `DualGreenHat_pcb.json`: an EasyEDA Standard PCB document with the board
   outline, three M3 holes, every footprint placed and every pad on its
-  net. Power and coil nets get a 0.8 mm track rule ("Power"); the rest use
-  0.254 mm.
+  net. Power and coil nets get a 0.4 mm track rule ("Power"); the rest use
+  0.254 mm. 0.4 mm is the widest track that reaches a DRV8313 pin (0.65 mm
+  pitch) without crowding the next one, so it is a floor for the escapes:
+  widen the main runs by hand, or use pours, where current matters.
 - `placement.svg`: a top-view sketch for review.
 - `print_1to1.svg`: an A4 sheet with the pads, holes and outlines at true
   size, for setting the module and the cables on paper. Print it at 100 %

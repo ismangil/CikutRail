@@ -91,5 +91,8 @@ new files ("after" versions) are:
   - J4/J5 side by side on the left edge, J6 and U2 on the right, J7 above
     J8 and then J9 on the bottom edge between the mounting holes.
   - Silkscreen: a "G" beside the GND pin of each sensor header J4-J8.
+  - Design rules: vias 0.6 / 0.3 mm on every net (the size of the DRV8313
+    footprint's thermal vias); power-net track rule 0.8 mm -> 0.4 mm, so
+    tracks can reach the DRV8313 pins.
   Documentation
   - New 1:1 print sheet of the placement (easyeda/print_1to1.svg).

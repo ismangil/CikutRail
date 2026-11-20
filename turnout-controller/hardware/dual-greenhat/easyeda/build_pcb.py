@@ -34,6 +34,7 @@ ORIGIN = (4000.0, 3000.0)
 BOARD_W, BOARD_H = 70.0, 56.0          # mm
 HOLES = [(46.0, 4.5), (66.5, 52.5), (33.5, 52.5)]  # M3, mm from top-left
 HOLE_D = 3.2
+POWER_W = 0.4                          # mm, track rule for POWER_NETS
 
 # --------------------------------------------------------------------------
 # Floorplan: ref -> (x mm, y mm, rotation deg). Board top-left is (0, 0),
@@ -335,7 +336,10 @@ def build(fetch):
     # Via rules are 0.6 / 0.3 mm on every net: the DRV8313 footprint's own
     # thermal vias are that size, and a larger rule makes EasyEDA's DRC flag
     # all 32 of them.
-    power = {"trackWidth": n(0.8 * MM), "clearance": n(0.2 * MM),
+    # Power tracks are 0.4 mm by rule: the DRV8313 pins are on a 0.65 mm
+    # pitch, and a wider track can't reach one without crowding the next.
+    # Widen the main runs by hand, or use pours, where current matters.
+    power = {"trackWidth": n(POWER_W * MM), "clearance": n(0.2 * MM),
              "viaHoleDiameter": n(0.6 * MM), "viaHoleD": n(0.3 * MM), "nets": POWER_NETS}
     doc = {
         "head": {"docType": "3", "editorVersion": "6.5.34", "newgId": True, "c_para": {},
@@ -364,7 +368,7 @@ def build(fetch):
         "routerRule": {"unit": "mm", "trackWidth": 0.254, "trackClearance": 0.152,
                        "viaHoleD": 0.3, "viaDiameter": 0.6, "routerLayers": [1, 2],
                        "smdClearance": 0.152,
-                       "specialNets": [{"net": nn, "width": n(0.8 * MM) + "px",
+                       "specialNets": [{"net": nn, "width": n(POWER_W * MM) + "px",
                                         "clearance": n(0.2 * MM) + "px",
                                         "viaHoleD": n(0.3 * MM) + "px",
                                         "viaHoleDiameter": n(0.6 * MM) + "px"}
