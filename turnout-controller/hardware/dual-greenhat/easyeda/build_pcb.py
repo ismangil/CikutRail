@@ -448,6 +448,21 @@ def print_sheet(boxes, pad_nets, shapes, marks):
     silkscreen outlines and designators. Print at 100 % ("actual size")
     and check the 50 mm rulers before trusting it."""
     ox, oy = 30.0, 40.0                      # board's top-left on the page
+
+    # Everything is written in page millimetres, with no transform: some
+    # viewers mis-draw a scaled group with offsets in the thousands.
+    def X(v):
+        return round(ox + (float(v) - ORIGIN[0]) / MM, 3)
+
+    def Y(v):
+        return round(oy + (float(v) - ORIGIN[1]) / MM, 3)
+
+    def P(pts):
+        return " ".join(f"{X(pts[i])},{Y(pts[i + 1])}" for i in range(0, len(pts) - 1, 2))
+
+    def L(v):
+        return round(float(v) / MM, 3)
+
     el = []
     for s in shapes:
         for sub in s.split("#@$"):
@@ -456,34 +471,32 @@ def print_sheet(boxes, pad_nets, shapes, marks):
                 cx, cy, w, h = map(float, f[2:6])
                 pts = [float(t) for t in f[10].split()] if f[10].strip() else []
                 if f[1] == "OVAL" and len(pts) == 4:
-                    el.append(f'<line x1="{pts[0]}" y1="{pts[1]}" x2="{pts[2]}" y2="{pts[3]}" '
-                              f'stroke="#000" stroke-width="{min(w, h)}" stroke-linecap="round"/>')
+                    el.append(f'<line x1="{X(pts[0])}" y1="{Y(pts[1])}" x2="{X(pts[2])}" y2="{Y(pts[3])}" '
+                              f'stroke="#000" stroke-width="{L(min(w, h))}" stroke-linecap="round"/>')
                 elif len(pts) >= 6:
-                    el.append(f'<polygon points="{" ".join(map(n, pts))}" fill="#000"/>')
+                    el.append(f'<polygon points="{P(pts)}" fill="#000"/>')
                 else:
-                    el.append(f'<circle cx="{cx}" cy="{cy}" r="{w / 2}" fill="#000"/>')
+                    el.append(f'<circle cx="{X(cx)}" cy="{Y(cy)}" r="{L(w / 2)}" fill="#000"/>')
                 if float(f[9] or 0):
-                    el.append(f'<circle cx="{cx}" cy="{cy}" r="{f[9]}" fill="#fff"/>')
+                    el.append(f'<circle cx="{X(cx)}" cy="{Y(cy)}" r="{L(f[9])}" fill="#fff"/>')
             elif f[0] == "TRACK" and f[2] == "3":
-                el.append(f'<polyline points="{f[4]}" fill="none" stroke="#888" stroke-width="0.4"/>')
+                el.append(f'<polyline points="{P([float(t) for t in f[4].split()])}" fill="none" '
+                          f'stroke="#888" stroke-width="0.1"/>')
             elif f[0] == "HOLE":
-                r = float(f[3])
-                el.append(f'<circle cx="{f[1]}" cy="{f[2]}" r="{r}" fill="none" stroke="#000" '
-                          f'stroke-width="0.4"/>'
-                          f'<path d="M{float(f[1]) - r} {f[2]}h{2 * r}M{f[1]} {float(f[2]) - r}v{2 * r}" '
-                          f'stroke="#000" stroke-width="0.3"/>')
+                x, y, r = X(f[1]), Y(f[2]), L(f[3])
+                el.append(f'<circle cx="{x}" cy="{y}" r="{r}" fill="none" stroke="#000" stroke-width="0.1"/>'
+                          f'<path d="M{round(x - r, 3)} {y}h{2 * r}M{x} {round(y - r, 3)}v{2 * r}" '
+                          f'stroke="#000" stroke-width="0.08"/>')
     for tx, ty in marks:
-        el.append(f'<text x="{tx}" y="{ty}" font-size="5" fill="#c00">G</text>')
+        el.append(f'<text x="{X(tx)}" y="{Y(ty)}" font-size="1.3" fill="#c00">G</text>')
     for r, (a0, a1, a2, a3) in boxes.items():
         if r[0] in "RC":
             continue  # label the parts worth finding on paper, not the passives
-        el.append(f'<text x="{(a0 + a2) / 2}" y="{a1 - 0.6}" font-size="6" fill="#06c" '
+        el.append(f'<text x="{X((a0 + a2) / 2)}" y="{round(Y(a1) - 0.15, 3)}" font-size="1.5" fill="#06c" '
                   f'text-anchor="middle">{r}</text>')
-    x1, y1 = ORIGIN[0] + BOARD_W * MM, ORIGIN[1] + BOARD_H * MM
-    el.append(f'<rect x="{ORIGIN[0]}" y="{ORIGIN[1]}" width="{BOARD_W * MM}" height="{BOARD_H * MM}" '
-              f'fill="none" stroke="#000" stroke-width="0.4"/>')
-    board = (f'<g transform="translate({ox} {oy}) scale({1 / MM}) translate({-ORIGIN[0]} {-ORIGIN[1]})">'
-             + "".join(el) + "</g>")
+    el.append(f'<rect x="{ox}" y="{oy}" width="{BOARD_W}" height="{BOARD_H}" '
+              f'fill="none" stroke="#000" stroke-width="0.1"/>')
+    board = "".join(el)
     mod = "".join(f'<rect x="{ox + x:.2f}" y="{oy + y:.2f}" width="{w}" height="{h}" fill="none" '
                   f'stroke="#06c" stroke-width="0.15" stroke-dasharray="1 0.6"/>'
                   for x, y, w, h in module_outline(pad_nets))
@@ -501,7 +514,8 @@ def print_sheet(boxes, pad_nets, shapes, marks):
     ]
     text = "".join(f'<text x="30" y="{14 + 5 * i}" font-size="{4 if i == 0 else 3}">{t}</text>'
                    for i, t in enumerate(notes))
-    svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297" '
+    svg = ('<?xml version="1.0" encoding="UTF-8"?>' + chr(10) +
+           '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="210mm" height="297mm" viewBox="0 0 210 297" '
            'font-family="sans-serif"><rect width="210" height="297" fill="#fff"/>'
            + text + board + mod
            + ruler(ox, oy + BOARD_H + 14, 1, 0)
