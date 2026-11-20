@@ -35,13 +35,12 @@ API = "https://easyeda.com/api/products/{}/components?version=6.4.19.5"
 CAT = {
     "R10K": ("C25744", "10k"),          # 0402, Basic
     "R100K": ("C25741", "100k"),        # 0402, Basic
-    "R18K": ("C25810", "18k"),          # 0603, Basic
+    "R54K9": ("C23077", "54.9k"),       # 0603, Extended
     "R0": ("C17477", "0R"),             # 0805, Basic (5 V link, buck input link)
     "C100N": ("C307331", "100nF 50V"),  # 0402, Basic
     "C10N": ("C15195", "10nF 50V"),     # 0402, Basic
     "C470N": ("C47339", "470nF 10V"),   # 0402
     "C10U": ("C15850", "10uF 25V"),     # 0805, Basic
-    "C22U0805": ("C45783", "22uF 25V"), # 0805, Basic
     "C22U1206": ("C12891", "22uF 25V"), # 1206, Basic
     "XOR": ("C6005", "74HCT86D"),
     "DRV": ("C92482", "DRV8313PWPR"),
@@ -85,10 +84,10 @@ def power_sheet():
     part(s, "R1", "R100K", {1: "VM", 2: "BUCK_EN"})
     part(s, "C6", "C100N", {1: "BUCK_BST", 2: "BUCK_SW"})
     part(s, "L1", "L3U3", {1: "BUCK_SW", 2: "5V_BUCK"})
-    part(s, "C7", "C22U0805", {1: "5V_BUCK", 2: "GND"})
-    part(s, "C8", "C22U0805", {1: "5V_BUCK", 2: "GND"})
-    part(s, "R2", "R100K", {1: "5V_BUCK", 2: "BUCK_FB"})  # upper divider
-    part(s, "R3", "R18K", {1: "BUCK_FB", 2: "GND"})       # 0.768*(1+100/18)=5.03 V
+    part(s, "C7", "C22U1206", {1: "5V_BUCK", 2: "GND"})
+    part(s, "C8", "C22U1206", {1: "5V_BUCK", 2: "GND"})
+    part(s, "R2", "R54K9", {1: "5V_BUCK", 2: "BUCK_FB"})  # upper divider
+    part(s, "R3", "R10K", {1: "BUCK_FB", 2: "GND"})       # 0.768*(1+54.9/10)=4.98 V
     part(s, "R4", "R0", {1: "5V_BUCK", 2: "5VIN"})        # remove to run from USB-C only
     # Stamp-S3Bat DIP sockets; pin 1 is the end away from USB-C
     part(s, "J2", "SOCKET9", {1: "CH1", 2: "CH2", 3: "CH3", 4: "CH4", 5: "CH5",

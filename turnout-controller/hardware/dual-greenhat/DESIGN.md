@@ -401,12 +401,15 @@ No layout yet, so this is an estimate.
    (table 7-2, 5 V row), checked against revision B (September 2024).
    - Inductor: 3.3 µH Sunlord SWPA4030S3R3MT (C15269, 2.4 A). 3.3 µH is
      the table's typical value (range 3.3–4.7 µH).
-   - Output: 2 × 22 µF in 0805. The table asks for 20–68 µF, and a 25 V
-     0805 part loses capacitance at 5 V, so this may fall below 20 µF.
-     **Still to decide:** the 1206 part already on the board (C12891).
-   - Feedback divider: 100 kΩ / 18 kΩ (5.03 V), both Basic parts. The
-     table uses 54.9 kΩ / 10 kΩ, and the datasheet warns that higher
-     values pick up more noise. **Still to decide.**
+   - Output: 2 × 22 µF in 1206 (C12891, the bulk capacitor already on the
+     board). The table asks for 20–68 µF. A 25 V 0805 part loses more
+     capacitance at 5 V and could fall below 20 µF, so the 0805 part
+     (C45783) was dropped.
+   - Feedback divider: 54.9 kΩ / 10 kΩ (4.98 V), the table's values. The
+     datasheet warns that higher values pick up more noise.
+     - R2: 54.9 kΩ, 0603, UNI-ROYAL 0603WAF5492T5E (C23077). It's an
+       Extended part, with about 117k in stock at JLCPCB on 2026-11-20.
+     - R3: 10 kΩ, 0402 (C25744), the same part as the channel resistors.
    - Input: 2 × 10 µF + 100 nF, behind the R5 link.
    - Bootstrap: 100 nF.
    - EN: pulled up to VIN through 100 kΩ (EN is rated to 19 V).

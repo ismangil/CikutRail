@@ -2,3 +2,6 @@
 .vscode/
 src/local_settings.h
 __pycache__/
+
+# EasyEDA Pro automatic project backups
+hardware/*_backup/

@@ -69,3 +69,14 @@ new files ("after" versions) are:
     7-18).
   - Placement sketch: Stamp-S3Bat outline corrected (28.0 mm PCB plus the
     USB-C shell).
+
+2026-11-20  Perry Ismangil
+  Circuit
+  - Buck output capacitors C7/C8 changed from 22 uF 0805 (C45783) to the
+    22 uF 1206 part used for the bulk capacitors (C12891).
+  - Buck feedback divider changed from 100 kOhm / 18 kOhm to the
+    datasheet's 54.9 kOhm / 10 kOhm (4.98 V): R2 is now 54.9 kOhm 0603
+    (C23077), R3 10 kOhm 0402 (C25744).
+  PCB placement
+  - C7, C8 and R4 moved to make room for the 1206 capacitors; R2 and R3
+    re-placed above the FB pin.
