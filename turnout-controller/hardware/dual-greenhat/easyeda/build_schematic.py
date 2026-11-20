@@ -54,7 +54,7 @@ CAT = {
     "R1K": ("C11702", "1k"),            # 0402, Basic
     "R4K7": ("C25900", "4.7k"),         # 0402, Basic
     "LDO33": ("C6186", "AMS1117-3.3"),  # SOT-223, Basic
-    "JSH3": ("C160403", "SM03B-SRSS-TB"),  # JST SH 3-pin, side entry
+    "HDR3": ("C49257", "1x3 header 2.54"),  # pin header, through-hole
     "JSH4": ("C160404", "SM04B-SRSS-TB"),  # JST SH 4-pin, side entry (Qwiic)
 }
 
@@ -112,12 +112,13 @@ def sensor_sheet():
     part(s, "C9", "C10U", {1: "5V_BUCK", 2: "GND"})
     part(s, "C10", "C22U1206", {1: "3V3_S", 2: "GND"})
     part(s, "C11", "C100N", {1: "3V3_S", 2: "GND"})
-    # One 3-pin JST SH per GPIO, in the Pololu sensor's order: 1 GND,
-    # 2 supply, 3 output. A 1k series resistor protects each pin
-    # (WIRING.md, "Sensor inputs"). Pins 4-5 are the mounting tabs.
+    # One open 3-pin 2.54 mm header per GPIO, as on the GreenHat's inputs:
+    # 1 GND, 2 supply, 3 signal. With the supply in the middle, a plug put
+    # on backwards only swaps GND and signal. A 1k series resistor protects
+    # each pin (WIRING.md, "Sensor inputs").
     for i, g in enumerate(range(7, 12)):
         part(s, f"R{6+i}", "R1K", {1: f"G{g}", 2: f"S{g}"})
-        part(s, f"J{4+i}", "JSH3", {1: "GND", 2: "3V3_S", 3: f"S{g}", 4: "GND", 5: "GND"})
+        part(s, f"J{4+i}", "HDR3", {1: "GND", 2: "3V3_S", 3: f"S{g}"})
     # I2C on the same two pins: G10 = SDA, G11 = SCL, straight to the
     # connector, with pull-ups. Use J7/J8 or J9 on these pins, not both.
     part(s, "J9", "JSH4", {1: "GND", 2: "3V3_S", 3: "G10", 4: "G11", 5: "GND", 6: "GND"})

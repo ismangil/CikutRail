@@ -28,7 +28,7 @@ I2C"). They are no longer free for extra GreenHats on this board.
 | Reverse polarity | One **SS34** Schottky in series (LCSC C8678, JLC Basic), replacing the GreenHat's Q1/D7/R7 |
 | Node power | 12 V → 5 V buck feeding the S3Bat's **5VIN** pin: **TI TPS563201DDCR** (LCSC C116592) |
 | Turnout outputs | **Two 6-way 2.54 mm screw terminals**, KF128-2.54-6P (LCSC C474924), one per block: 2 pins per turnout, 3 turnouts each |
-| Sensor inputs | **Five**, on G7–G11: one 3-pin JST SH connector each (SM03B-SRSS-TB, LCSC C160403), GND / 3.3 V / signal, 1 kΩ in series |
+| Sensor inputs | **Five**, on G7–G11: one open 3-pin 2.54 mm header each (LCSC C49257), GND / 3.3 V / signal, 1 kΩ in series |
 | I2C | G10 (SDA) and G11 (SCL) also on a **Qwiic / STEMMA QT** connector (SM04B-SRSS-TB, LCSC C160404) with 4.7 kΩ pull-ups. The firmware picks sensor or I2C for these two pins |
 | Sensor supply | 3.3 V from an **AMS1117-3.3** (LCSC C6186, JLC Basic) fed by the buck's 5 V |
 | Assembly | Fully assembled by JLCPCB, parts from LCSC |
@@ -375,17 +375,24 @@ The five GPIOs the turnouts don't use, G7–G11, come out on connectors.
 
 **Digital sensor inputs (J4–J8)**
 
-| Connector | GPIO | Channel | Board edge |
-|---|---|---|---|
-| J4 | G7 | 7 | left, above the USB-C end |
-| J5 | G8 | 8 | left |
-| J6 | G9 | 9 | right |
-| J7 | G10 | 10 | bottom |
-| J8 | G11 | 11 | bottom |
+| Connector | GPIO | Channel | Board edge | GND pin (pin 1) |
+|---|---|---|---|---|
+| J4 | G7 | 7 | left, above the USB-C end | top |
+| J5 | G8 | 8 | left, beside J4 | top |
+| J6 | G9 | 9 | right | bottom |
+| J7 | G10 | 10 | bottom, upper row | left |
+| J8 | G11 | 11 | bottom, lower row | left |
 
-- **Connector:** 3-pin JST SH, 1 mm pitch, side entry. Pin 1 GND, pin 2
-  3.3 V, pin 3 signal. That's the order on Pololu's digital distance
-  sensor (see SENSOR_BENCH.md), so its cable plugs straight in.
+- **Connector:** an open, upright 3-pin 2.54 mm pin header, like the
+  GreenHat's inputs. Pin 1 GND, pin 2 3.3 V, pin 3 signal. It takes
+  jumper wires or a 3-way plug, so any sensor fits. Pololu's digital
+  distance sensor (see SENSOR_BENCH.md) has a JST SH socket, so it needs
+  a JST SH cable with loose female ends.
+- **Not keyed.** With 3.3 V in the middle, a plug put on backwards swaps
+  only GND and signal, and the 1 kΩ resistor is then in the way. That
+  should be harmless, but it isn't tested.
+- **Pairs:** J4/J5 and J7/J8 stand 2.8 mm apart, so two single-row plugs
+  fit side by side. A 2×3 plug (2.54 mm) does not.
 - **Protection:** a 1 kΩ resistor (R6–R10) in series with each signal, as
   WIRING.md asks for sensor inputs.
 - **Firmware:** nothing new. Set the channel to *sensor* on the config
@@ -423,9 +430,42 @@ The five GPIOs the turnouts don't use, G7–G11, come out on connectors.
   an I2C pull-up can feed a little current into an unpowered pin. The 1 kΩ
   and 4.7 kΩ resistors limit it to about 3 mA and under 1 mA.
 
-**To check before ordering:** plug a Pololu cable and a Qwiic cable into
-the footprints' pin 1 on a 1:1 print, to confirm the connectors aren't
-mirrored.
+**To check before ordering:** plug a Qwiic cable into J9's footprint on a
+1:1 print, to confirm the connector isn't mirrored, and mark GND on the
+silkscreen at each header.
+
+## JLCPCB assembly check (2026-11-20)
+
+The board is meant to arrive fully assembled, with no hand soldering. All
+23 BOM lines were checked on jlcpcb.com on 2026-11-20:
+
+- **Every part is in JLCPCB's assembly library** and allowed on both
+  Economic and Standard PCBA.
+- **19 lines are SMT.** 11 are Basic; 8 are Extended (F1, U1, L1, R2,
+  U101/U201, the four DRV8313, the 470 nF capacitors and J9).
+- **4 lines are through-hole**, all marked "Wave Soldering", which JLCPCB
+  solders for you: J1, J101/J201, the S3Bat sockets J2/J3 and the sensor
+  headers J4–J8. All four are Extended.
+- **12 Extended lines in total**, at JLCPCB's $3 loading fee each. The
+  through-hole work adds a $3.50 labour fee plus about $0.02 per joint
+  (47 joints).
+- **Lowest stock:** DRV8313PWPR 469 (four per board), KF128L-5.08-2P 800,
+  KF128-2.54-6P 953, 74HCT86D 1,850. Check these again when ordering.
+
+Placement against JLCPCB's assembly rules:
+
+- **One side only.** Every part is on the top layer, which Economic PCBA
+  requires.
+- **Edge distance.** JLCPCB's terms ask for 2.5 mm between a part's body
+  and the board edge. Ten parts are closer: the connectors that have to
+  be at an edge (J1, J101, J201, J2, J3, J4, J8, J9) and four parts of
+  the buck converter on the right edge (C7, C8, L1, R4, 0.9–1.7 mm).
+  Order with **edge rails and fiducials "added by JLCPCB"**; the rails
+  give the machines their margin and are broken off afterwards.
+- The Stamp-S3Bat is not soldered. It plugs into J2/J3.
+
+Not checked here: JLCPCB's own DFM review, which runs on the Gerbers and
+placement file once the board is routed.
 
 ## Board size (estimate)
 
@@ -551,9 +591,9 @@ leaves the board or crowds a mounting hole.
 | Right column | F1, D1, bulk caps, then the buck (U1, L1, R1–R5, C3–C8) |
 | Bottom left | the Stamp-S3Bat sockets J2 (G-row, on top) and J3, with USB-C at the left board edge |
 | Bottom middle | U101/U201 (74HCT86) and each channel's RC parts |
-| Left edge, above the module | J4 (G7) and J5 (G8), opening to the left |
-| Right edge, below the buck | U2 (3.3 V) with C9/C10, and J6 (G9), opening to the right |
-| Bottom edge, between the holes | J7 (G10), J8 (G11) and J9 (Qwiic), opening downwards, with R9–R12 and C11 beside them |
+| Left edge, above the module | J4 (G7) and J5 (G8), upright, side by side |
+| Right edge, below the buck | U2 (3.3 V) with C9/C10, and J6 (G9), upright |
+| Bottom edge, between the holes | J7 (G10) above J8 (G11), upright, then J9 (Qwiic) opening downwards, with R9–R12 and C11 beside them |
 
 - **Drivers rotated 180°:** pins 1–14 (charge pump, VM, coil outputs) face
   the terminals, and pins 15–28 (logic inputs) face the XORs and the

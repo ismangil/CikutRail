@@ -77,9 +77,9 @@ new files ("after" versions) are:
   - Buck feedback divider changed from 100 kOhm / 18 kOhm to the
     datasheet's 54.9 kOhm / 10 kOhm (4.98 V): R2 is now 54.9 kOhm 0603
     (C23077), R3 10 kOhm 0402 (C25744).
-  - Added five digital sensor inputs on the spare GPIOs G7-G11: one 3-pin
-    JST SH connector each (J4-J8, SM03B-SRSS-TB), with a 1 kOhm series
-    resistor (R6-R10).
+  - Added five digital sensor inputs on the spare GPIOs G7-G11: one open
+    3-pin 2.54 mm pin header each (J4-J8), with a 1 kOhm series resistor
+    (R6-R10).
   - Added an I2C port on G10 (SDA) and G11 (SCL): a 4-pin JST SH connector
     in the Qwiic / STEMMA QT order (J9, SM04B-SRSS-TB) with 4.7 kOhm
     pull-ups (R11, R12). G10 and G11 serve either J7/J8 or J9.
@@ -88,5 +88,5 @@ new files ("after" versions) are:
   PCB placement
   - C7, C8 and R4 moved to make room for the 1206 capacitors; R2 and R3
     re-placed above the FB pin.
-  - J4/J5 on the left edge, J6 and U2 on the right, J7-J9 on the bottom
-    edge between the mounting holes.
+  - J4/J5 side by side on the left edge, J6 and U2 on the right, J7 above
+    J8 and then J9 on the bottom edge between the mounting holes.
