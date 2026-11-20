@@ -4,10 +4,12 @@ Uses the parts and nets from build_schematic.py, the LCSC footprints cached
 in fp/ (keyed by LCSC number), and the floorplan in PLACE below. Writes an
 EasyEDA Standard PCB source with every footprint placed, every pad on its
 net, the board outline, mounting holes and track-width rules. Routing is
-left to EasyEDA (by hand or its autorouter).
+done in EasyEDA (by hand or its autorouter) and kept in routes.json,
+which this script adds back to the board along with the GND pours.
 
     python build_pcb.py            # uses the fp/ cache only
     python build_pcb.py --fetch    # downloads missing footprints first
+    python build_pcb.py --no-routes    # placement only, for a fresh autoroute
 
 Outputs (next to this script):
     DualGreenHat_pcb.json   EasyEDA Standard PCB source
@@ -16,6 +18,7 @@ Outputs (next to this script):
                             checking the module and connectors on paper
 """
 
+import hashlib
 import json
 import math
 import re
@@ -34,7 +37,6 @@ ORIGIN = (4000.0, 3000.0)
 BOARD_W, BOARD_H = 70.0, 56.0          # mm
 HOLES = [(46.0, 4.5), (66.5, 52.5), (33.5, 52.5)]  # M3, mm from top-left
 HOLE_D = 3.2
-POWER_W = 0.4                          # mm, track rule for POWER_NETS
 
 # --------------------------------------------------------------------------
 # Floorplan: ref -> (x mm, y mm, rotation deg). Board top-left is (0, 0),
@@ -136,9 +138,23 @@ def xor_block(n, y):
 xor_block(100, 28.5)
 xor_block(200, 40.0)
 
-# Nets that carry coil or supply current get wider tracks.
-POWER_NETS = ["V12_IN", "V12_F", "VM", "VM_BUCK", "GND", "BUCK_SW", "5V_BUCK", "5VIN", "3V3_S"] + [
-    f"T{k}_{s}" for k in range(1, 7) for s in "AB"]
+# Nets that carry coil or supply current get wider tracks. The width is
+# limited by the narrowest pad a net has to reach:
+#   Supply  12 V input, only large pads (J1, F1, D1)
+#   Buck    the buck converter's nets, down to U1's SOT-23-6 pins (0.95 mm
+#           pitch, 0.6 mm pads)
+#   Power   everything that reaches a DRV8313 pin (0.65 mm pitch): 0.4 mm
+#           is the widest track that fits. Widen the main runs by hand, or
+#           use pours, where current matters.
+NET_CLASSES = {
+    "Supply": (1.0, ["V12_IN", "V12_F"]),
+    "Buck": (0.6, ["VM_BUCK", "BUCK_SW", "5V_BUCK", "5VIN"]),
+    "Power": (0.4, ["VM", "GND", "3V3_S"] + [f"T{k}_{s}" for k in range(1, 7) for s in "AB"]),
+}
+CLEARANCE = 0.152                      # mm, what the autorouter is asked to keep, on every net
+DRC_CLEARANCE = 0.127                  # mm (5 mil), what DRC checks: the router lands up to 0.02 mm
+                                       # under its target. JLCPCB's minimum spacing is 0.1 mm.
+ROUTES = HERE / "routes.json"          # tracks and vias kept from EasyEDA, see load_routes
 
 # --------------------------------------------------------------------------
 # Footprints
@@ -303,7 +319,27 @@ def outline():
     return f"TRACK~1~10~~{pts}~gge_outline~0"
 
 
-def build(fetch):
+def placement_key():
+    """Changes whenever a part moves or a pad changes net, which is when
+    kept routing stops being valid."""
+    parts = [(ref, key, sorted(pins.items()), PLACE.get(ref)) for ref, key, pins, _ in sch.PARTS]
+    return hashlib.sha1(repr(parts).encode()).hexdigest()[:12]
+
+
+def load_routes():
+    """Tracks and vias routed in EasyEDA and saved back to routes.json, as
+    EasyEDA shape strings. They only fit the placement they were routed on,
+    so they are dropped (with a warning) when the placement has changed."""
+    if not ROUTES.exists():
+        return []
+    r = json.loads(ROUTES.read_text(encoding="utf-8"))
+    if r.get("placement") != placement_key():
+        print("  ! routes.json was routed on a different placement; not used")
+        return []
+    return r["shapes"]
+
+
+def build(fetch, routes=True):
     counter = [0]
 
     def gid():
@@ -324,6 +360,18 @@ def build(fetch):
     for hx, hy in HOLES:
         shapes.append(f"HOLE~{n(ORIGIN[0] + hx * MM)}~{n(ORIGIN[1] + hy * MM)}~"
                       f"{n(HOLE_D / 2 * MM)}~{gid()}~0")
+    kept = load_routes() if routes else []
+    shapes += [re.sub(r"gge[0-9A-Za-z]+", lambda m: gid(), s) for s in kept]
+    if kept:
+        # GND pour on both layers, 0.3 mm inside the outline, and cut back
+        # 0.5 mm from the Stamp-S3Bat's outline: no pour under the module,
+        # for its antenna. EasyEDA fills the pour when the board is opened.
+        (mx, my, mw, mh), _ = module_outline(pad_nets)
+        pts = [(0.3, 0.3), (BOARD_W - 0.3, 0.3), (BOARD_W - 0.3, BOARD_H - 0.3),
+               (mx + mw + 0.5, BOARD_H - 0.3), (mx + mw + 0.5, my - 0.5), (0.3, my - 0.5)]
+        path = "M " + " L ".join(f"{n(ORIGIN[0] + x * MM)} {n(ORIGIN[1] + y * MM)}" for x, y in pts) + " Z"
+        for layer in (1, 2):
+            shapes.append(f"COPPERAREA~1~{layer}~GND~{path}~1~solid~{gid()}~spoke~none~[]~0")
     marks = []
     for ref, side in GND_MARK.items():
         px, py = next((x, y) for x, y, net in pad_nets[ref] if net == "GND")
@@ -336,11 +384,9 @@ def build(fetch):
     # Via rules are 0.6 / 0.3 mm on every net: the DRV8313 footprint's own
     # thermal vias are that size, and a larger rule makes EasyEDA's DRC flag
     # all 32 of them.
-    # Power tracks are 0.4 mm by rule: the DRV8313 pins are on a 0.65 mm
-    # pitch, and a wider track can't reach one without crowding the next.
-    # Widen the main runs by hand, or use pours, where current matters.
-    power = {"trackWidth": n(POWER_W * MM), "clearance": n(0.2 * MM),
-             "viaHoleDiameter": n(0.6 * MM), "viaHoleD": n(0.3 * MM), "nets": POWER_NETS}
+    classes = {name: {"trackWidth": n(w * MM), "clearance": n(DRC_CLEARANCE * MM),
+                      "viaHoleDiameter": n(0.6 * MM), "viaHoleD": n(0.3 * MM), "nets": nets}
+               for name, (w, nets) in NET_CLASSES.items()}
     doc = {
         "head": {"docType": "3", "editorVersion": "6.5.34", "newgId": True, "c_para": {},
                  "hasIdFlag": True, "x": n(ORIGIN[0]), "y": n(ORIGIN[1]),
@@ -361,18 +407,18 @@ def build(fetch):
                    "101~ComponentPolarityLayer~#66FFCC~false~false~false~"],
         "BBox": {"x": ORIGIN[0] - 10, "y": ORIGIN[1] - 10,
                  "width": BOARD_W * MM + 20, "height": BOARD_H * MM + 20},
-        "DRCRULE": {"Default": {"trackWidth": n(0.254 * MM), "clearance": n(0.152 * MM),
+        "DRCRULE": {"Default": {"trackWidth": n(0.254 * MM), "clearance": n(DRC_CLEARANCE * MM),
                                 "viaHoleDiameter": n(0.6 * MM), "viaHoleD": n(0.3 * MM)},
-                    "Power": power, "isRealtime": True, "isDrcOnRoutingOrPlaceVia": False,
+                    **classes, "isRealtime": True, "isDrcOnRoutingOrPlaceVia": False,
                     "checkObjectToCopperarea": True, "showDRCRangeLine": True},
-        "routerRule": {"unit": "mm", "trackWidth": 0.254, "trackClearance": 0.152,
+        "routerRule": {"unit": "mm", "trackWidth": 0.254, "trackClearance": CLEARANCE,
                        "viaHoleD": 0.3, "viaDiameter": 0.6, "routerLayers": [1, 2],
-                       "smdClearance": 0.152,
-                       "specialNets": [{"net": nn, "width": n(POWER_W * MM) + "px",
-                                        "clearance": n(0.2 * MM) + "px",
+                       "smdClearance": CLEARANCE,
+                       "specialNets": [{"net": nn, "width": n(w * MM) + "px",
+                                        "clearance": n(CLEARANCE * MM) + "px",
                                         "viaHoleD": n(0.3 * MM) + "px",
                                         "viaHoleDiameter": n(0.6 * MM) + "px"}
-                                       for nn in POWER_NETS]},
+                                       for w, nets in NET_CLASSES.values() for nn in nets]},
         "preference": {"hideFootprints": "", "hideNets": ""},
         "netColors": {},
     }
@@ -534,7 +580,7 @@ def print_sheet(boxes, pad_nets, shapes, marks):
 
 
 if __name__ == "__main__":
-    boxes, pads, shapes, marks = build("--fetch" in sys.argv)
+    boxes, pads, shapes, marks = build("--fetch" in sys.argv, "--no-routes" not in sys.argv)
     preview(boxes, pads)
     print_sheet(boxes, pads, shapes, marks)
     problems = check(boxes)

@@ -1,7 +1,8 @@
 # Dual-GreenHat carrier board: design note
 
-Status: **placement started**. The schematic and a first PCB placement
-(70 × 56 mm, not yet routed) are generated in [easyeda/](easyeda/).
+Status: **routed, first pass, not yet reviewed**. The schematic and the
+PCB (70 × 56 mm, autorouted, DRC clean) are generated in
+[easyeda/](easyeda/).
 
 One PCB that the Stamp-S3Bat plugs into, carrying two copies of IoTT's
 GreenHat Coil Driver circuit: six turnout channels for this layout's six
@@ -600,10 +601,16 @@ places them from the `PLACE` table. It writes:
 
 - `DualGreenHat_pcb.json`: an EasyEDA Standard PCB document with the board
   outline, three M3 holes, every footprint placed and every pad on its
-  net. Power and coil nets get a 0.4 mm track rule ("Power"); the rest use
-  0.254 mm. 0.4 mm is the widest track that reaches a DRV8313 pin (0.65 mm
-  pitch) without crowding the next one, so it is a floor for the escapes:
-  widen the main runs by hand, or use pours, where current matters.
+  net, plus the routing kept in `routes.json` and a GND pour on both
+  layers. Track rules by net class: 1.0 mm for the 12 V input ("Supply"),
+  0.6 mm for the buck converter's nets ("Buck"), 0.4 mm for VM, GND, 3.3 V
+  and the coil outputs ("Power"), 0.254 mm for the rest. 0.4 mm is the
+  widest track that reaches a DRV8313 pin (0.65 mm pitch) without crowding
+  the next one.
+- `routes.json`: the tracks and vias, as EasyEDA shape strings, with a key
+  of the placement they were routed on. `build_pcb.py` adds them to the
+  board; if a part has moved since, it drops them and warns.
+  `--no-routes` writes the placement alone, for a fresh autoroute.
 - `placement.svg`: a top-view sketch for review.
 - `print_1to1.svg`: an A4 sheet with the pads, holes and outlines at true
   size, for setting the module and the cables on paper. Print it at 100 %
@@ -669,23 +676,40 @@ copper pours, traces and vias.
   short of C107 and C207; the USB-C shell reaches the carrier's left
   edge. It sits above J2/J3, so nothing tall may go under it.
 
+## Routing (first pass, 2026-11-20)
+
+The board is routed, by EasyEDA's cloud autorouter with the net-class
+widths above: 370 of 370 connections, 598 tracks (2.4 m), 62 vias.
+Re-imported with the GND pours, EasyEDA's DRC reports **0 errors** and
+69 of 69 nets complete. The DRC clearance is 0.127 mm (5 mil); the router
+was asked for 0.152 mm and lands up to 0.02 mm under it.
+
+This is machine routing that passes the rule check. It has **not** been
+reviewed as a layout, and these points want a look before ordering:
+
+- **VM** is one 0.4 mm tree, 251 mm long with 8 vias, feeding all four
+  drivers. The coil pulses are short and each driver pair has a 22 µF
+  bulk capacitor, but a wide VM bus or pour would be better.
+- **Buck converter.** SW is routed on the top layer (11.5 mm, 0.6 mm
+  wide), not through a via onto the bottom as planned under "PCB
+  placement". The parts are placed as TI's example, so the loops are
+  short, but the routing doesn't follow TI's rule 5.
+- **GND pour** is on both layers and is cut back from under the
+  Stamp-S3Bat, for its antenna. GND is also fully routed as tracks, so
+  nothing depends on the pour. There are no extra stitching vias.
+- **VCC5V** (the logic rail) is 0.254 mm wide, like a signal.
+
 ## Next steps
 
-1. Open `DualGreenHat_pcb.json` in EasyEDA (File > Open > EasyEDA
-   Source) and do the checks under "PCB placement".
-2. Route the power path by hand first:
-   - J1 → F1 → D1 → the VM bus;
-   - the buck: C3 to U1's VIN and GND pins first, then SW through a via
-     and along the bottom layer to L1 and C6 (see "PCB placement");
-   - the coil outputs to J101/J201;
-   - VM to each driver.
-3. Add a GND pour on the bottom layer, with vias under each DRV8313's
-   thermal pad (the footprint has them). Keep the pour clear of the
-   module's antenna end.
-4. Route the logic by hand or with the autorouter.
-5. Run DRC, then export Gerbers, BOM and pick-and-place. Add the Gerbers
+1. Review the routing in EasyEDA (`DualGreenHat_pcb.json`, File > Open >
+   EasyEDA Source) against the points above, and the 3D view for the
+   screw terminals' wire entry.
+2. Rework what the review finds: by hand in EasyEDA, or by changing the
+   rules or placement here and routing again.
+3. Run DRC, then export Gerbers, BOM and pick-and-place. Add the Gerbers
    and a schematic PDF to this folder, as the TAPR OHL requires.
-6. Order a small batch; bench-test against PHASE1_BENCH.md.
+4. Order a small batch with JLCPCB-added edge rails; bench-test against
+   PHASE1_BENCH.md.
 
 ## Other files
 

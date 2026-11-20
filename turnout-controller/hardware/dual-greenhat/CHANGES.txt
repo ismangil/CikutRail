@@ -92,7 +92,14 @@ new files ("after" versions) are:
     J8 and then J9 on the bottom edge between the mounting holes.
   - Silkscreen: a "G" beside the GND pin of each sensor header J4-J8.
   - Design rules: vias 0.6 / 0.3 mm on every net (the size of the DRV8313
-    footprint's thermal vias); power-net track rule 0.8 mm -> 0.4 mm, so
-    tracks can reach the DRV8313 pins.
+    footprint's thermal vias). Track rules by net class: 1.0 mm for the
+    12 V input, 0.6 mm for the buck converter's nets, 0.4 mm for VM, GND,
+    3.3 V and the coil outputs (was 0.8 mm for all of these, too wide to
+    reach the DRV8313 pins). Clearance 0.127 mm.
+  PCB routing
+  - First routing, by EasyEDA's autorouter (easyeda/routes.json): 598
+    tracks, 62 vias, all 69 nets. GND pour on both layers, cut back from
+    under the Stamp-S3Bat. EasyEDA's DRC reports no errors. Not yet
+    reviewed as a layout.
   Documentation
   - New 1:1 print sheet of the placement (easyeda/print_1to1.svg).
