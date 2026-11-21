@@ -678,6 +678,32 @@ copper pours, traces and vias.
   short of C107 and C207; the USB-C shell reaches the carrier's left
   edge. It sits above J2/J3, so nothing tall may go under it.
 
+## Silkscreen (2026-11-21)
+
+The first boards had every designator at the top-left corner of its part,
+and in the dense areas the texts ran into each other and over pads.
+`build_pcb.py` now places them (`place_labels`):
+
+- Each designator goes beside its own part, level or turned 90° (reading
+  upwards), where it is clear of every part, mounting hole, other text
+  and, where possible, via, and nearer to its own part than to any other.
+  Connectors and ICs are placed first.
+- A designator with no such place is **not printed**. That is 24 of the
+  93: the middle of the two RC grids (R102, R105, C102, R201–R206,
+  C201–C203, C205), five capacitors between the drivers (C111, C113,
+  C116, C211, C213), three at the buck (C4, C5, C8) and R5, R9, R10. The
+  text is
+  still in the board file (hidden), so the BOM and pick-and-place files
+  are unaffected; find these parts in EasyEDA or on the schematic.
+- The board title is five short lines in the free area left of U101. It
+  used to be one line along the bottom edge, across J3, J8 and J9.
+- Text is 1 mm high with a 0.15 mm stroke. The text sizes in the script
+  are measured from EasyEDA; all 79 printed texts were checked against
+  the glyphs EasyEDA drew, with no collisions.
+
+Not on the silkscreen yet: the channel labels at the turnout terminals
+(`6B 6A …`, see "Outputs and turnout direction").
+
 ## Routing (second pass, 2026-11-20)
 
 The board is routed in two parts:

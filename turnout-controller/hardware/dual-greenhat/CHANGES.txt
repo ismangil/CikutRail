@@ -105,3 +105,12 @@ new files ("after" versions) are:
     DRC reports no errors. Not yet reviewed as a layout.
   Documentation
   - New 1:1 print sheet of the placement (easyeda/print_1to1.svg).
+
+2026-11-21  Perry Ismangil
+  PCB silkscreen
+  - Designators are placed by the script so that they don't run into each
+    other or over pads: beside their part, some turned 90 degrees. 24
+    designators in the densest areas have no room and are not printed
+    (listed in DESIGN.md, "Silkscreen").
+  - Board title and licence notice moved from one line along the bottom
+    edge (across J3, J8 and J9) to five short lines left of U101.

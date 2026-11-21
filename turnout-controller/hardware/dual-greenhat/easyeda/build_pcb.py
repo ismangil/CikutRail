@@ -99,6 +99,15 @@ PLACE = {
 # isn't keyed: -1 puts it to the left of the header, 1 to the right.
 GND_MARK = {"J4": -1, "J5": 1, "J6": 1, "J7": -1, "J8": -1}
 
+# Board title and licence notice on the silkscreen: (x mm, y mm, text), the
+# anchor being the text's bottom-left corner.
+TITLE = [(17.5, 25.5 + 1.5 * i, t) for i, t in enumerate(
+    ["CikutRail", "dual GreenHat", "TAPR OHL", "based on IoTT", "GreenHat"])]
+
+# Designators are placed automatically (place_labels). A part listed here
+# gets its designator on that side only.
+LABEL_SIDE = {"J201": "left", "J101": "left"}
+
 
 def driver_block(u, x, c):
     """DRV8313 at (x, 15), rotated so pins 1-14 (charge pump, VM, coil
@@ -383,25 +392,118 @@ def place_fp(ref, key, pins, fp, x_mm, y_mm, rot, gid):
     cpara = "`".join(f"{k}`{v}" for k, v in cp.items()) + "`"
     lib = (f"LIB~{n(tx)}~{n(ty)}~{cpara}~{rot}~~{gid()}~1~{fp['uuid']}~0~0~~yes~~")
     bx = bbox(out)
-    # designator on the silkscreen above the part; EasyEDA draws the glyphs
-    prefix = (f"TEXT~P~{n(bx[0])}~{n(bx[1] - 1.5)}~0.6~0~0~3~~4~{ref}~~~{gid()}~~0~pinpart")
     name = (f"TEXT~N~{n(bx[0])}~{n(bx[3] + 5)}~0.6~0~0~12~~3~{value}~~none~{gid()}~~0~pinpart")
-    return "#@$".join([lib] + out + [prefix, name]), bx, pads
+    # the designator text is added by build(), once every part is in place
+    return [lib] + out, name, bx, bbox(out, tight=True), pads
 
 
-def bbox(shapes):
+def bbox(shapes, tight=False):
+    """Extent of a footprint's pads and outline. The default takes each pad
+    as a circle of its longer side (a margin for the overlap check); tight
+    takes the pad's real rectangle, for placing silkscreen text."""
     xs, ys = [], []
     for s in shapes:
         f = s.split("~")
         k = f[0]
         if k == "PAD":
             cx, cy, w, h = map(float, f[2:6])
-            r = max(w, h) / 2
-            xs += [cx - r, cx + r]; ys += [cy - r, cy + r]
+            pts = [float(t) for t in f[10].split()] if f[10].strip() else []
+            if tight and len(pts) >= 6:
+                xs += pts[0::2]; ys += pts[1::2]
+                continue
+            if tight and round(float(f[11] or 0)) % 180 == 90:
+                w, h = h, w
+            rx, ry = (w / 2, h / 2) if tight else (max(w, h) / 2,) * 2
+            xs += [cx - rx, cx + rx]; ys += [cy - ry, cy + ry]
         elif k == "TRACK" and f[2] in ("3", "1", "2"):
             v = [float(t) for t in f[4].split()]
             xs += v[0::2]; ys += v[1::2]
     return min(xs), min(ys), max(xs), max(ys)
+
+
+# --------------------------------------------------------------------------
+# Silkscreen text
+#
+# EasyEDA draws the glyphs itself, so the sizes here are measured from a
+# board it imported: at font size 4 (1 mm) a character advances at most
+# 3.6 units and the glyphs reach from 4.2 to 0.2 units above the anchor.
+# --------------------------------------------------------------------------
+
+TEXT_GAP = 0.2 * MM      # between a label and anything else on the silkscreen
+
+
+def text_box(x, y, text, rot=0):
+    """Box of a silkscreen text anchored at (x, y), stroke width included.
+    Rotation 90 is EasyEDA's: the text turns about its anchor and reads
+    from the bottom of the board upwards."""
+    w = 3.6 * len(text)
+    if rot == 90:
+        return (x - 4.5, y - w - 0.1, x + 0.1, y + 0.3)
+    return (x - 0.3, y - 4.5, x + w + 0.1, y + 0.1)
+
+
+def box_gap(a, b):
+    """Distance between two boxes; negative when they overlap."""
+    dx = max(a[0] - b[2], b[0] - a[2])
+    dy = max(a[1] - b[3], b[1] - a[3])
+    return math.hypot(max(dx, 0), max(dy, 0)) if dx > 0 or dy > 0 else max(dx, dy)
+
+
+def place_labels(tight, fixed, vias):
+    """Find a place for each part's designator: beside its own part, clear
+    of every part, hole, fixed text and other designator, and nearer to
+    its own part than to any other. Returns {ref: (x, y, rotation)}; a
+    part with no such place is left out, and its designator is hidden."""
+    x0, y0 = ORIGIN[0] + 0.4 * MM, ORIGIN[1] + 0.4 * MM
+    x1, y1 = ORIGIN[0] + (BOARD_W - 0.4) * MM, ORIGIN[1] + (BOARD_H - 0.4) * MM
+    holes = [(ORIGIN[0] + (hx - HOLE_D / 2) * MM, ORIGIN[1] + (hy - HOLE_D / 2) * MM,
+              ORIGIN[0] + (hx + HOLE_D / 2) * MM, ORIGIN[1] + (hy + HOLE_D / 2) * MM) for hx, hy in HOLES]
+    taken = list(fixed) + holes
+    placed = {}
+    g, step = TEXT_GAP, 0.25 * MM
+
+    def span(lo, hi):
+        return [lo + step * i for i in range(int((hi - lo) / step) + 1)] + [hi]
+
+    # connectors and ICs first: those are the ones looked for on the board
+    rank = {"J": 0, "U": 1, "F": 2, "D": 2, "L": 2}
+    for ref in sorted(tight, key=lambda r: (rank.get(r[0], 3), r)):
+        a = tight[ref]
+        cx, cy = (a[0] + a[2]) / 2, (a[1] + a[3]) / 2
+        others = [tight[q] for q in tight if q != ref]
+        best = None
+        for rot in (0, 90):
+            w, h = 3.6 * len(ref) + 0.4, 4.6
+            if rot:
+                w, h = h, w
+            for e in (g, g + 0.5 * MM, g + 1.0 * MM, g + 1.5 * MM):   # distance from the part
+                sides = {"above": [(x, a[1] - e - h) for x in span(a[0] - w, a[2])],
+                         "below": [(x, a[3] + e) for x in span(a[0] - w, a[2])],
+                         "left": [(a[0] - e - w, y) for y in span(a[1] - h, a[3])],
+                         "right": [(a[2] + e, y) for y in span(a[1] - h, a[3])]}
+                cands = sides[LABEL_SIDE[ref]] if ref in LABEL_SIDE else sum(sides.values(), [])
+                for bx0, by0 in cands:
+                    b = (bx0, by0, bx0 + w, by0 + h)
+                    if b[0] < x0 or b[1] < y0 or b[2] > x1 or b[3] > y1:
+                        continue
+                    # a via hole under the text breaks the glyphs: use such
+                    # a place only when there is no other
+                    cost = (math.hypot((b[0] + b[2]) / 2 - cx, (b[1] + b[3]) / 2 - cy)
+                            + (0.3 * MM if rot else 0)
+                            + 10 * MM * sum(1 for v in vias if box_gap(b, v) < 0))
+                    if best and cost >= best[0]:
+                        continue
+                    own = box_gap(b, a)
+                    if any(box_gap(b, t) < g for t in taken):
+                        continue
+                    if any(box_gap(b, o) < own + 0.1 * MM for o in others):
+                        continue
+                    best = (cost, b, rot)
+        if best:
+            _, b, rot = best
+            taken.append(b)
+            placed[ref] = (b[2] - 0.1, b[3] - 0.3, 90) if rot else (b[0] + 0.3, b[3] - 0.1, 0)
+    return placed
 
 
 # --------------------------------------------------------------------------
@@ -447,17 +549,54 @@ def build(fetch, routes=True):
     missing = [ref for ref, *_ in sch.PARTS if ref not in PLACE]
     if missing:
         sys.exit(f"no placement for {missing}")
+    libs, tight = {}, {}
     for ref, key, pins, _ in sch.PARTS:
         fp = load_fp(sch.CAT[key][0], fetch)
         x, y, rot = PLACE[ref]
-        lib, bx, pads = place_fp(ref, key, pins, fp, x, y, rot, gid)
-        shapes.append(lib)
+        pieces, name, bx, tbx, pads = place_fp(ref, key, pins, fp, x, y, rot, gid)
+        libs[ref] = (pieces, name)
         boxes[ref] = bx
+        tight[ref] = tbx
         pad_nets[ref] = pads
+    kept = load_routes() if routes else []
+
+    # Silkscreen text. The fixed texts go down first, then the designators
+    # are fitted around them (place_labels).
+    vias = []
+    for sh in kept + [v for v in pre_shapes(gid, False) if v.startswith("VIA")]:
+        f = sh.split("~")
+        if f[0] == "VIA":
+            r = float(f[5])
+            vias.append((float(f[1]) - r, float(f[2]) - r, float(f[1]) + r, float(f[2]) + r))
+    marks, fixed, texts = [], [], []
+    for ref, side in GND_MARK.items():
+        px, py = next((x, y) for x, y, net in pad_nets[ref] if net == "GND")
+        tx, ty = px + (1.7 if side > 0 else -2.6) * MM, py + 0.5 * MM
+        texts.append((tx, ty, "G"))
+        marks.append((tx, ty))
+    for x_mm, y_mm, t in TITLE:
+        texts.append((ORIGIN[0] + x_mm * MM, ORIGIN[1] + y_mm * MM, t))
+    for tx, ty, t in texts:
+        b = text_box(tx, ty, t)
+        hit = ([q for q in tight if box_gap(b, tight[q]) < TEXT_GAP]
+               + [t2 for t2, b2 in fixed if box_gap(b, b2) < TEXT_GAP]
+               + ["a via"] * any(box_gap(b, v) < 0 for v in vias))
+        if hit:
+            print(f"  ! silkscreen text '{t}' runs into {hit}")
+        fixed.append((t, b))
+    labels = place_labels(tight, [b for _, b in fixed], vias)
+    hidden = sorted(r for r in tight if r not in labels)
+    if hidden:
+        print(f"  designator not printed, no room ({len(hidden)}): {' '.join(hidden)}")
+    for ref, (pieces, name) in libs.items():
+        bx = boxes[ref]
+        lx, ly, lrot = labels.get(ref, (bx[0], bx[1] - 1.5, 0))
+        show = "" if ref in labels else "none"
+        prefix = f"TEXT~P~{n(lx)}~{n(ly)}~0.6~{lrot}~0~3~~4~{ref}~~{show}~{gid()}~~0~pinpart"
+        shapes.append("#@$".join(pieces + [prefix, name]))
     for hx, hy in HOLES:
         shapes.append(f"HOLE~{n(ORIGIN[0] + hx * MM)}~{n(ORIGIN[1] + hy * MM)}~"
                       f"{n(HOLE_D / 2 * MM)}~{gid()}~0")
-    kept = load_routes() if routes else []
     shapes += [re.sub(r"gge[0-9A-Za-z]+", lambda m: gid(), s) for s in kept]
     if not routes:   # for the autorouter: reserve the copper of the routes drawn here
         shapes += pre_shapes(gid, True)
@@ -471,14 +610,8 @@ def build(fetch, routes=True):
         path = "M " + " L ".join(f"{n(ORIGIN[0] + x * MM)} {n(ORIGIN[1] + y * MM)}" for x, y in pts) + " Z"
         for layer in (1, 2):
             shapes.append(f"COPPERAREA~1~{layer}~GND~{path}~1~solid~{gid()}~spoke~none~[]~0")
-    marks = []
-    for ref, side in GND_MARK.items():
-        px, py = next((x, y) for x, y, net in pad_nets[ref] if net == "GND")
-        tx, ty = px + (1.7 if side > 0 else -2.6) * MM, py + 0.5 * MM
-        shapes.append(f"TEXT~L~{n(tx)}~{n(ty)}~0.6~0~0~3~~4~G~~~{gid()}~~0~")
-        marks.append((tx, ty))
-    shapes.append(f"TEXT~L~{n(ORIGIN[0] + 2 * MM)}~{n(ORIGIN[1] + (BOARD_H - 1.5) * MM)}~0.6~0~0~3~~4~"
-                  f"CikutRail dual GreenHat  TAPR OHL  based on IoTT GreenHat~~~{gid()}~~0~")
+    for tx, ty, t in texts:
+        shapes.append(f"TEXT~L~{n(tx)}~{n(ty)}~0.6~0~0~3~~4~{t}~~~{gid()}~~0~")
 
     # Via rules are 0.6 / 0.3 mm on every net: the DRV8313 footprint's own
     # thermal vias are that size, and a larger rule makes EasyEDA's DRC flag
