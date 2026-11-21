@@ -1,0 +1,39 @@
+{
+ "result": {
+  "uuid": "3afede4c15c098992980e723e25db389",
+  "title": "0402WGF1003TCE",
+  "lcsc": "C25741",
+  "puuid": "fafd024f554e426eb74cf4a204aa88b0",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "5.8.20",
+    "c_para": {
+     "pre": "R?",
+     "name": "0402WGF1003TCE",
+     "package": "R0402",
+     "nameAlias": "Value",
+     "Supplier": "LCSC",
+     "Manufacturer": "UNI-ROYAL(厚声)",
+     "Manufacturer Part": "0402WGF1003TCE",
+     "Supplier Part": "C25741",
+     "Value": "100kΩ",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "x": 20,
+    "y": 0,
+    "puuid": "fafd024f554e426eb74cf4a204aa88b0",
+    "uuid": "3afede4c15c098992980e723e25db389",
+    "utime": 1542386015,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "P~show~1~2~40~0~0~rep2~0^^40~0^^M 40 -0 h-10~#000000^^0~25~3~0~2~end~~~#000000^^0~35~-1~0~2~start~~~#000000^^0~33~0^^0~M 30 -3 L 27 0 L 30 3",
+    "P~show~1~1~0~0~180~rep3~0^^0~0^^M 0 -0 h10~#000000^^0~15~3~0~1~start~~~#000000^^0~5~-1~0~1~end~~~#000000^^0~7~0^^0~M 10 3 L 13 0 L 10 -3",
+    "R~10~-4~~~20~8~#880000~1~0~none~rep4~0"
+   ]
+  }
+ }
+}

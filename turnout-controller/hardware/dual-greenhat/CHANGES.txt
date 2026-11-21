@@ -1,0 +1,116 @@
+CHANGES to the IoTT GreenHat Coil Driver rev 1.0
+================================================
+
+Upstream: IoTT GreenHat Coil Driver, rev 1.0, Hans R. Tanner (IoTT),
+2021-07-11 / 2021-08-27, from tanner87661/IoTTStick,
+"Hat Devices/GreenHat Power Extension" (copy in upstream/).
+
+Derived design: CikutRail dual-GreenHat carrier board, a Stamp-S3Bat DIP
+carrier with six turnout channels for Kato Unitrack turnouts.
+
+These modifications are licensed under the TAPR Open Hardware License
+(www.tapr.org/OHL).
+
+The upstream files are unchanged ("before" versions, in upstream/). The
+new files ("after" versions) are:
+  DESIGN.md                            design note and rationale
+  easyeda/build_schematic.py           generator for the schematic
+  easyeda/DualGreenHat_schematic.json  EasyEDA Standard schematic source
+  easyeda/netlist.txt                  netlist (ASCII)
+  easyeda/bom.csv                      bill of materials (ASCII)
+  easyeda/lib/*.json                   EasyEDA/LCSC library symbols used
+
+2026-09-28  Perry Ismangil
+  Circuit
+  - Two copies of the GreenHat circuit on one board: six channels.
+  - Removed the steering diodes D1-D6 and output terminal pins 3-4
+    (twin-coil turnouts). Each turnout uses 2 pins for its two-wire
+    Kato coil, on two 6-way terminals (KF128-2.54-6P), one per block.
+  - Removed the input headers J1-J3. The inputs are routed to a socket
+    for an M5Stack Stamp-S3Bat DIP (G1-G6).
+  - Removed the H7350 LDO and J6. The 5 V logic rail comes from the
+    S3Bat's switched 5VOUT.
+  - Replaced the reverse-polarity circuit (Q1 SI2301CDS, D7, R7) with one
+    SS34 Schottky diode, and added a 2 A PTC resettable fuse at the input.
+    The design assumes a fixed, regulated 12 V supply.
+  - Added a TPS563201 12 V -> 5 V buck converter feeding the S3Bat's 5VIN,
+    so one terminal powers everything.
+  - 74HC86 -> 74HCT86 (valid logic levels from 3.3 V GPIOs).
+  - 10.2 kOhm -> 10 kOhm for the input pull-ups and RC series resistors.
+  - DRV8313 support parts changed to the TI datasheet values: charge-pump
+    capacitor 100 nF -> 10 nF, V3P3OUT capacitor 4.7 nF -> 470 nF;
+    100 nF per VM pin plus 22 uF bulk per driver pair.
+  - Logic GND and power GND are one net, joined on the board.
+  - Removed the 1 MOhm pulse-length trimmers R3/R4/R6. They were set fully
+    counter-clockwise (0 Ohm), so the pulse is fixed by the 10 kOhm series
+    resistor and the 10 uF capacitor.
+  Documentation
+  - New schematic generated for EasyEDA Standard (see above).
+  - New PCB placement for EasyEDA Standard, 70 x 56 mm, not yet routed
+    (easyeda/build_pcb.py, easyeda/DualGreenHat_pcb.json,
+    easyeda/placement.svg, footprints in easyeda/fp/). Gerbers and PDF
+    exports will be added here when made.
+
+2026-11-19  Perry Ismangil
+  Circuit
+  - Turnout terminals renumbered against the channels: J101 pins 1-2 are
+    channel 3, 3-4 channel 2, 5-6 channel 1 (J201: channels 6, 5, 4). In
+    each pair the lower pin is the delayed side (B), the higher the direct
+    side (A).
+  - Added R5, a 0 Ohm link (0805) between VM and the buck converter's
+    input. The buck's input capacitors C3-C5 are now behind it, on the new
+    net VM_BUCK.
+  PCB placement
+  - Drivers placed in the order U203, U202, U103, U102 and the terminals
+    moved over them, so the coil traces don't cross.
+  - Buck converter parts moved to the pins they serve: U1 rotated 90
+    degrees, C3 across VIN and GND with room for the SW via, C6 at BST,
+    R1-R3 at EN and FB, L1 and C7/C8 at SW (TPS563201 datasheet, figure
+    7-18).
+  - Placement sketch: Stamp-S3Bat outline corrected (28.0 mm PCB plus the
+    USB-C shell).
+
+2026-11-20  Perry Ismangil
+  Circuit
+  - Buck output capacitors C7/C8 changed from 22 uF 0805 (C45783) to the
+    22 uF 1206 part used for the bulk capacitors (C12891).
+  - Buck feedback divider changed from 100 kOhm / 18 kOhm to the
+    datasheet's 54.9 kOhm / 10 kOhm (4.98 V): R2 is now 54.9 kOhm 0603
+    (C23077), R3 10 kOhm 0402 (C25744).
+  - Added five digital sensor inputs on the spare GPIOs G7-G11: one open
+    3-pin 2.54 mm pin header each (J4-J8), with a 1 kOhm series resistor
+    (R6-R10).
+  - Added an I2C port on G10 (SDA) and G11 (SCL): a 4-pin JST SH connector
+    in the Qwiic / STEMMA QT order (J9, SM04B-SRSS-TB) with 4.7 kOhm
+    pull-ups (R11, R12). G10 and G11 serve either J7/J8 or J9.
+  - Added a 3.3 V regulator for the sensor connectors (U2, AMS1117-3.3,
+    with C9-C11), fed from the buck converter's 5 V.
+  PCB placement
+  - C7, C8 and R4 moved to make room for the 1206 capacitors; R2 and R3
+    re-placed above the FB pin.
+  - J4/J5 side by side on the left edge, J6 and U2 on the right, J7 above
+    J8 and then J9 on the bottom edge between the mounting holes.
+  - Silkscreen: a "G" beside the GND pin of each sensor header J4-J8.
+  - Design rules: vias 0.6 / 0.3 mm on every net (the size of the DRV8313
+    footprint's thermal vias). Track rules by net class: 1.0 mm for the
+    12 V input, 0.6 mm for the buck converter's nets, 0.4 mm for VM, GND,
+    3.3 V and the coil outputs (was 0.8 mm for all of these, too wide to
+    reach the DRV8313 pins). Clearance 0.127 mm.
+  PCB routing
+  - Routing (easyeda/routes.json): 631 tracks, 66 vias, all 69 nets.
+    Drawn in build_pcb.py: a 1.5 mm VM feed and bus on the bottom layer,
+    the buck converter's SW net through vias onto the bottom layer, and
+    pins 1-4 of each DRV8313. The rest is by EasyEDA's autorouter. GND
+    pour on both layers, cut back from under the Stamp-S3Bat. EasyEDA's
+    DRC reports no errors. Not yet reviewed as a layout.
+  Documentation
+  - New 1:1 print sheet of the placement (easyeda/print_1to1.svg).
+
+2026-11-21  Perry Ismangil
+  PCB silkscreen
+  - Designators are placed by the script so that they don't run into each
+    other or over pads: beside their part, some turned 90 degrees. 24
+    designators in the densest areas have no room and are not printed
+    (listed in DESIGN.md, "Silkscreen").
+  - Board title and licence notice moved from one line along the bottom
+    edge (across J3, J8 and J9) to five short lines left of U101.

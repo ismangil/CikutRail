@@ -1,0 +1,39 @@
+{
+ "result": {
+  "uuid": "fd10bd3c9c8ee21585159db5c39b145a",
+  "title": "SMD1812P200TF16",
+  "lcsc": "C20812",
+  "puuid": "ab17c647a0a943b09958724a36a719c7",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "5.8.20",
+    "c_para": {
+     "pre": "F?",
+     "name": "SMD1812P200TF16",
+     "package": "F1812",
+     "Supplier": "LCSC",
+     "Manufacturer Part": "SMD1812P200TF16",
+     "Manufacturer": "RUILON(瑞隆源)",
+     "Supplier Part": "C20812",
+     "JLCPCB Part Class": "Extended Part"
+    },
+    "x": 5,
+    "y": -5,
+    "puuid": "ab17c647a0a943b09958724a36a719c7",
+    "uuid": "fd10bd3c9c8ee21585159db5c39b145a",
+    "utime": 1542992434,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "PL~-10 0 -5 0~#000000~1~0~none~gge2~0",
+    "PT~M -5 0 C 0 -10 5 0 5 0 C 10 10 15 0 15 0~#000000~1~0~none~gge3~0",
+    "PL~15 0 20 0~#000000~1~0~none~gge4~0",
+    "P~show~0~1~-30~0~180~gge5~0^^-30~0^^M -30 0 h 20~#880000^^0~-8~3~0~1~start~~~#0000FF^^1~-15~-1~0~1~end~~~#0000FF^^0~-13~0^^0~M -10 3 L -7 0 L -10 -3",
+    "P~show~0~2~40~0~0~gge13~0^^40~0^^M 40 0 h -20~#880000^^0~18~3~0~2~end~~~#0000FF^^1~25~-1~0~2~start~~~#0000FF^^0~23~0^^0~M 20 -3 L 17 0 L 20 3"
+   ]
+  }
+ }
+}

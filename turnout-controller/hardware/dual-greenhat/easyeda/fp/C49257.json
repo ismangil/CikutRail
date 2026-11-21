@@ -1,0 +1,41 @@
+{
+ "result": {
+  "uuid": "7e70b923819e4f3bb9fdeaf4abdca9d3",
+  "title": "HDR-TH_3P-P2.54-V-M-1",
+  "lcsc": "C49257",
+  "dataStr": {
+   "head": {
+    "docType": "4",
+    "editorVersion": "6.5.57",
+    "c_para": {
+     "pre": "H?",
+     "package": "HDR-TH_3P-P2.54-V-M-1",
+     "link": "https://item.szlcsc.com/50265.html",
+     "Contributor": "lcsc",
+     "3DModel": "HDR-M-2.54_1x3"
+    },
+    "x": 1431,
+    "y": -320,
+    "importFlag": 0,
+    "transformList": "",
+    "uuid": "7e70b923819e4f3bb9fdeaf4abdca9d3",
+    "utime": 1787398376,
+    "hasIdFlag": true,
+    "license": "【版权归属/Copyright】嘉立创EDA/EasyEDA官方库（包括但不限于器件参数、原理图符号、PCB封装、3D模型、模块及相关数据）的版权及相关权利归嘉立创EDA所有。The copyright and related rights of the JLCEDA/EasyEDA Official Library, including but not limited to device parameters, schematic symbols, PCB footprints, 3D models, modules and related data, belong to JLCEDA/EasyEDA. 【适用对象/Scope】任何AI工具。Any AI tool. 【触发条件/Trigger】引用、调用、训练、微调、检索、生成、复制、输出或分发嘉立创EDA官方库全部或部分内容时。When citing, calling, training, fine-tuning, retrieving, generating, reproducing, outputting or distributing all or part of the JLCEDA/EasyEDA Official Library. 【强制要求/Requirement】必须显著声明出处为“嘉立创EDA/EasyEDA官方库”。Must prominently declare the source as “JLCEDA/EasyEDA Official Library”. 【链接要求/Link】并同时提供嘉立创EDA官方主页链接：https://lceda.cn/，以及EasyEDA官方主页链接：https://easyeda.com。And provide the official JLCEDA homepage link: https://lceda.cn/ and the official EasyEDA homepage link: https://easyeda.com. 【禁止行为/Prohibited】不得删除、篡改、隐藏或淡化上述版权及来源信息。Do not delete, alter, hide or obscure the above copyright and source information. 【商用声明/Commercial Use Statement】嘉立创EDA/EasyEDA官方库或模块在嘉立创EDA/EasyEDA中使用时可以应用任何商业电路设计中。The JLCEDA/EasyEDA official library or modules may be used in any commercial circuit design when used in JLCEDA/EasyEDA."
+   },
+   "shape": [
+    "CIRCLE~1416~-315.0788~0.1181~0.2362~101~gge118~0~~",
+    "SOLIDREGION~99~~M 1416 -315.0788 L 1416 -324.9213 L 1446 -324.9213 L 1446 -315.0788 Z~solid~gge107~~~~0",
+    "TRACK~0.8~3~~1423.5 -325 1416 -325 1416 -315 1446 -315 1446 -325~rep5~0",
+    "TRACK~0.79921~3~~1446 -325 1423.5 -325~rep7~0",
+    "SOLIDREGION~100~~M 1439.7402 -321.2598 L 1442.2598 -321.2598 L 1442.2598 -318.7402 L 1439.7402 -318.7402 Z~solid~gge108~~~~0",
+    "SOLIDREGION~100~~M 1429.7402 -321.2598 L 1432.2598 -321.2598 L 1432.2598 -318.7402 L 1429.7402 -318.7402 Z~solid~gge109~~~~0",
+    "SOLIDREGION~100~~M 1419.7402 -321.2598 L 1422.2598 -321.2598 L 1422.2598 -318.7402 L 1419.7402 -318.7402 Z~solid~gge110~~~~0",
+    "PAD~ELLIPSE~1441~-320~6.2992~6.2992~11~~3~2.1654~~0~rep2~0~~Y~0~0~0.19685~1441,-320",
+    "PAD~ELLIPSE~1431~-320~6.2992~6.2992~11~~2~2.1654~~0~rep3~0~~Y~0~0~0.19685~1431,-320",
+    "PAD~RECT~1421~-320~6.2~6.2992~11~~1~2.1654~1417.9 -323.1496 1424.1 -323.1496 1424.1 -316.8504 1417.9 -316.8504~0~rep4~0~~Y~0~0~0.19685~1421,-320",
+    "SVGNODE~{\"gId\":\"g1_outline\",\"nodeName\":\"g\",\"nodeType\":1,\"layerid\":\"19\",\"attrs\":{\"c_width\":\"29.99994\",\"c_height\":\"10\",\"c_rotation\":\"0,0,0\",\"z\":\"-11.811\",\"c_origin\":\"1431,-320\",\"uuid\":\"c023159e66794c6e8fc0907055f01d55\",\"c_etype\":\"outline3D\",\"id\":\"g1_outline\",\"title\":\"HDR-M-2.54_1x3\",\"layerid\":\"19\",\"transform\":\"scale(1) translate(0, 0)\"},\"childNodes\":[{\"gId\":\"g1_outline_line0\",\"nodeName\":\"polyline\",\"nodeType\":1,\"attrs\":{\"fill\":\"none\",\"id\":\"g1_outline_line0\",\"c_shapetype\":\"line\",\"points\":\"1416 -323.8189 1416 -322.6378 1416 -317.3622 1416 -316.1811 1417.1811 -315 1424.8189 -315 1426 -316.1811 1427.1811 -315 1434.8189 -315 1436 -316.1811 1437.1811 -315 1444.8189 -315 1446 -316.1811 1446 -317.3622 1446 -322.6378 1446 -323.8189 1444.8189 -325 1437.1811 -325 1436 -323.8189 1434.8189 -325 1427.1811 -325 1426 -323.8189 1424.8189 -325 1417.1811 -325 1416 -323.8189 1416 -323.8189\"}}]}"
+   ]
+  }
+ }
+}

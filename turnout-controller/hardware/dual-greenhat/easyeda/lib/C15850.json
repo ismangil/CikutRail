@@ -1,0 +1,42 @@
+{
+ "result": {
+  "uuid": "7a0c79967d0e7ae293044fb82790899a",
+  "title": "CL21A106KAYNNNE",
+  "lcsc": "C15850",
+  "puuid": "2ee8eb13a0124a108e622ce40c0c25a8",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "6.5.40",
+    "c_para": {
+     "pre": "C?",
+     "name": "CL21A106KAYNNNE",
+     "package": "C0805",
+     "nameAlias": "Value",
+     "Supplier": "LCSC",
+     "Manufacturer Part": "CL21A106KAYNNNE",
+     "Manufacturer": "SAMSUNG(三星)",
+     "Value": "10uF",
+     "Supplier Part": "C15850",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "puuid": "2ee8eb13a0124a108e622ce40c0c25a8",
+    "uuid": "7a0c79967d0e7ae293044fb82790899a",
+    "utime": 1706173880,
+    "x": 15,
+    "y": 20,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "PL~13 20 5 20~#A00000~1~0~none~gge14~0",
+    "P~show~0~2~35~20~0~gge17~0^^35~20^^M 25 20 h 10~#800^^0~21~20~0~2~end~~~#800^^0~29~16~0~2~start~~~#800^^0~48~20^^0~M 45 17 L 42 20 L 45 23",
+    "PL~17 12 17 28~#A00000~1~0~none~gge38~0",
+    "PL~25 20 17 20~#A00000~1~0~none~gge41~0",
+    "P~show~0~1~-5~20~180~gge44~0^^-5~20^^M 5 20 h -10~#800^^0~9~20~0~1~start~~~#800^^0~1~16~0~1~end~~~#800^^0~-18~20^^0~M -15 23 L -12 20 L -15 17",
+    "PL~13 28 13 12~#A00000~1~0~none~gge65~0"
+   ]
+  }
+ }
+}

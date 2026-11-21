@@ -1,0 +1,42 @@
+{
+ "result": {
+  "uuid": "6596cfa97904606b0a27108659fa30e7",
+  "title": "CL31A226KAHNNNE",
+  "lcsc": "C12891",
+  "puuid": "7bdec8012728462a85919a4d0d033579",
+  "dataStr": {
+   "head": {
+    "docType": "2",
+    "editorVersion": "5.8.20",
+    "c_para": {
+     "pre": "C?",
+     "name": "CL31A226KAHNNNE",
+     "package": "C1206",
+     "nameAlias": "Value",
+     "Supplier": "LCSC",
+     "Manufacturer Part": "CL31A226KAHNNNE",
+     "Manufacturer": "SAMSUNG(三星)",
+     "Value": "22uF",
+     "Supplier Part": "C12891",
+     "JLCPCB Part Class": "Basic Part"
+    },
+    "puuid": "7bdec8012728462a85919a4d0d033579",
+    "uuid": "6596cfa97904606b0a27108659fa30e7",
+    "utime": 1542802902,
+    "x": 15,
+    "y": 0,
+    "importFlag": 0,
+    "c_spiceCmd": null,
+    "hasIdFlag": true
+   },
+   "shape": [
+    "PL~13 -8 13 8~#880000~1~0~none~rep2~0",
+    "PL~17 -8 17 8~#880000~1~0~none~rep3~0",
+    "P~show~1~1~0~0~180~rep4~0^^0~0^^M 0 -0 h10~#000000^^0~15~3~0~1~start~~~#000000^^0~5~-1~0~1~end~~~#000000^^0~7~0^^0~M 10 3 L 13 0 L 10 -3",
+    "P~show~1~2~30~0~0~rep5~0^^30~0^^M 30 -0 h-10~#000000^^0~15~3~0~2~end~~~#000000^^0~25~-1~0~2~start~~~#000000^^0~23~0^^0~M 20 -3 L 17 0 L 20 3",
+    "PL~10 0 13 0~#880000~1~0~none~rep6~0",
+    "PL~17 0 20 0~#880000~1~0~none~rep7~0"
+   ]
+  }
+ }
+}
